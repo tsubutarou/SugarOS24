@@ -1,0 +1,65 @@
+{
+  "asset_spec": "full_pose_v1",
+  "tile_size": [
+    64,
+    64
+  ],
+  "atlas_tiles": [
+    8,
+    2
+  ],
+  "slots": {
+    "body_idle": {
+      "col": 0,
+      "row": 0
+    },
+    "body_blink": {
+      "col": 1,
+      "row": 0
+    },
+    "body_talk": {
+      "col": 2,
+      "row": 0
+    },
+    "body_walk_0": {
+      "col": 3,
+      "row": 0
+    },
+    "body_walk_1": {
+      "col": 4,
+      "row": 0
+    },
+    "body_walk_2": {
+      "col": 5,
+      "row": 0
+    },
+    "body_happy": {
+      "col": 6,
+      "row": 0
+    },
+    "body_eat": {
+      "col": 7,
+      "row": 0
+    },
+    "body_drowsy": {
+      "col": 0,
+      "row": 1
+    },
+    "body_sleep": {
+      "col": 1,
+      "row": 1
+    },
+    "body_game": {
+      "col": 2,
+      "row": 1
+    },
+    "body_groove_0": {
+      "col": 3,
+      "row": 1
+    },
+    "body_groove_1": {
+      "col": 4,
+      "row": 1
+    }
+  }
+}

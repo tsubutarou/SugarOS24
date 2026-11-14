@@ -1,0 +1,32 @@
+# GitHub に上げないファイルの一覧
+# （ツールを使うと自動でできる、個人の設定・資料の一覧・セーブデータなど）
+
+# 設定（資料フォルダの場所、お天気の地名などが入る）
+sugaros24/*_config.json
+
+# 資料の一覧（ファイル名や、テキストの中身が入る）
+sugaros24/*_index.json
+
+# いまの状態（昼夜・天気・音楽・ランチャーの位置・カラー）
+sugaros24/mushiboshi_*.json
+
+# エレクトロガールのセーブデータ
+sugaros24/electro_girl_save.json
+
+# エラーの記録（パソコンのフォルダ名が入ることがある）
+sugaros24/*_error.txt
+
+# 資料ことのは用のテキスト置き場（使う場合）
+sugaros24/input/
+
+# キャラ取り込みで残る、もとの絵や前のおへやの絵
+sugaros24/electro_girl_data/chara/*/source/
+sugaros24/electro_girl_data/chara/*/room_old_*.png
+
+# Python が自動で作るファイル
+__pycache__/
+*.pyc
+
+# Windows が自動で作るファイル
+Thumbs.db
+desktop.ini

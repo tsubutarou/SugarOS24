@@ -1,0 +1,100 @@
+4人（キャンディ・ドーナツ・ケーキ・アイス）のポーズを、ほかのAIに描いてもらうときのお願い文
+==========================================================================================
+
+使い方
+  1. 描いてほしい子の「立ち絵」（もとの絵）を、AIに参考画像としてわたす
+     （もとの絵は electro_girl_data / chara / candy・donut・cake・ice の source フォルダにあります）
+  2. 下の「共通のお願い」と、その子の「キャラの説明」をつなげて送る
+  3. できた1枚の絵を、キャラ取り込みで取り込む
+       ・「1枚にまとめた絵を選ぶ」で、AIの絵だけを選ぶ
+         → 12体が、まばたき・おしゃべり・あるく1〜3・ごきげん・おやつ・ねむい・ねる・ゲーム・ノる1〜2 の順に入り、
+           「たち」には、あるく 2（足をそろえた絵）が自動で入ります。AIの絵どうしで絵柄がそろうので、こちらがおすすめ
+       ・「Zzz」や「♪」のような、体から離れた小さな飾りは自動で外します（エレクトロガールが自分で出すので）
+       ・もとの立ち絵を「たち」にしたいときは、先に「絵を選ぶ」で立ち絵を選んでから、シートを選んでください
+       ・名前を入れて保存（同じ子をもう一度取り込むと「candy_2」のように別の子として増えます。
+         前の子が要らなくなったら、そのフォルダを別の場所に移してください）
+
+  うまくいかないとき
+  ・AIが12体を1枚に描くのが苦手なら、2〜4ポーズずつ頼んで、ファイル名をポーズ名にして（例：walk1.png）
+    「絵を選ぶ」で何枚もまとめて選んでもOKです。
+  ・できなかったポーズは、取り込みツールが立ち絵から自動で作ります。
+
+
+------------------------------------------------------------
+■ 共通のお願い（日本語）
+------------------------------------------------------------
+参考画像のキャラクターと、まったく同じデザイン・同じ絵柄で、ポーズ違いの絵を1枚にまとめて描いてください。
+
+絵柄：3頭身くらいのデフォルメ。大きな頭と、大きくてきらきらした目、太いまつげ。
+太めの黒い線画に、フラットな塗りと、髪にやわらかいグラデーション。口は小さく。
+
+次の12ポーズを、この順番で、左上から横に並べてください（1段に4体、3段）：
+ 1 立ち（目を閉じている）
+ 2 立ち（口を少しあけて、しゃべっている）
+ 3 歩き 1コマめ（右足を前に）
+ 4 歩き 2コマめ（足をそろえる）
+ 5 歩き 3コマめ（左足を前に）
+ 6 よろこんでいる（両手を少し上げて、にっこり）
+ 7 お菓子を両手で持って食べている
+ 8 眠そう（目が半分とじている）
+ 9 座って眠っている
+10 ゲームのコントローラーを両手で持っている
+11 音楽に合わせてノっている 1コマめ（体を左にかたむける）
+12 音楽に合わせてノっている 2コマめ（体を右にかたむける）
+
+条件：
+・全身を足の先まで描く。正面向き。
+・12体とも同じ大きさで、足の高さをそろえる。
+・背景は白の1色。キャラ同士は重ならないよう、すきまをあけて並べる。
+・文字や番号、影、地面は描かない。
+
+------------------------------------------------------------
+■ キャラの説明（その子のぶんだけ、上のお願いのあとにつける）
+------------------------------------------------------------
+【キャンディ】
+ピンクからミントグリーンへのグラデーションのツインテール（毛先が緑）。前髪に青紫のキャンディの形のヘアピン。
+ピンクの目に緑のハートのハイライト、緑のアイシャドウ。白いパフスリーブのブラウスに、白いバツのひもがついたマゼンタのキャミソール。
+水色のダメージ加工のフレアジーンズ。ピンクのストラップシューズ。にっこり。
+
+【ドーナツ】
+オレンジのショートヘアで、毛先が青紫になるグラデーション。頭にアホ毛。うしろに長い三つ編み（紫）。
+茶色の目に青い三角のハイライト、青いアイシャドウ。ミント色のステッチの入った大きなオレンジのカーディガン、
+クリーム色のトップス、ドーナツのペンダント。ネイビーのフレアパンツにドーナツのワッペン。リボンのついたオレンジの靴。にっこり。
+
+【ケーキ】
+紫のロングヘアで、前髪のあたりがオレンジになるグラデーション。濃い色のカチューシャ。
+紫の目にオレンジのしずく形のハイライト、オレンジのアイシャドウ。ショートケーキの刺しゅうが入った、
+濃い紫のオーバーサイズのニットセーター。薄いピンクのプリーツのロングスカート。オレンジのひもの黒い靴。表情はおすまし。
+
+【アイス】
+ミント色のショートヘアで、毛先が紫になるグラデーション。頭にアホ毛。
+ティール色の目に紫のバツのハイライト、紫のアイシャドウ。緑の袖口の白い長袖Tシャツに、アイスクリームのプリント、
+すそがとけたアイスのように垂れている。白いラインの入った黒いジャージのパンツ。緑のふちの黒いスニーカー。表情はおすまし。
+
+
+------------------------------------------------------------
+■ English version (for AIs that work better in English)
+------------------------------------------------------------
+Draw a single sprite sheet of the character in the reference image, keeping exactly the same design and art style.
+Style: chibi, about 3 heads tall, big head, big sparkly eyes with thick lashes, bold black line art,
+flat colors with soft gradients in the hair, small mouth.
+Arrange these 12 poses in this order, left to right, top to bottom (4 per row, 3 rows):
+1 standing, eyes closed / 2 standing, mouth slightly open (talking) / 3-5 walking cycle (right foot forward,
+feet together, left foot forward) / 6 happy, hands slightly raised / 7 eating a sweet held in both hands /
+8 sleepy, half-closed eyes / 9 sitting and asleep / 10 holding a game controller / 11-12 dancing to music
+(leaning left, leaning right).
+Full body down to the feet, facing front, all the same size with the feet on the same line,
+plain white background, figures well separated, no text, numbers, shadows or ground.
+
+Character notes:
+- Candy: pink-to-mint twin tails, blue-purple candy hair clip, pink eyes with green heart highlights, green eyeshadow,
+  white puff-sleeve blouse with a magenta laced camisole, light-blue ripped flared jeans, pink strappy shoes, smiling.
+- Donut: short orange hair fading to blue-purple, ahoge, long purple braid, brown eyes with blue triangle highlights,
+  big orange cardigan with mint stitching, cream top, donut pendant, navy flared pants with a donut patch,
+  orange shoes with bows, smiling.
+- Cake: long purple hair with orange bangs, dark headband, purple eyes with orange teardrop highlights,
+  dark purple oversized knit sweater with a shortcake embroidery, light pink long pleated skirt,
+  black shoes with orange laces, calm face.
+- Ice: short mint hair fading to purple, ahoge, teal eyes with purple x highlights, white long-sleeve tee with green
+  cuffs and an ice cream print, dripping hem, black track pants with white stripes, black sneakers with green trim,
+  calm face.

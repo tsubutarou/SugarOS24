@@ -1,0 +1,86 @@
+4人（キャンディ・ドーナツ・ケーキ・アイス）のおへやを、ほかのAIに描いてもらうときのお願い文
+==========================================================================================
+
+使い方
+  1. 下の「共通のお願い」と、その子の「おへやの説明」をつなげて送る
+     （その子のポーズのシートも参考画像としてわたすと、絵柄がそろいやすいです）
+  2. できた絵を、キャラ取り込み（chara_import.pyw）の「おへやの絵を取り込む…」で取り込む
+       ・「だれのおへや？」でその子を選ぶ →「昼の絵を選ぶ」→（あれば）「夜の絵を選ぶ」
+       ・まんなかにその子が立ったプレビューが出るので、床の高さや見え方を確かめて「このおへやにする」
+       ・夜の絵がなくても、夜は自動で暗くします
+  3. エレクトロガールを開きなおすと、その子のときに、そのおへやになります
+
+  ・絵は横5：縦4 に切り抜いて、100×80 のドット絵に縮めます。横長・縦長の絵でもOK
+    （縦長のときは「下（床）を残す」がおすすめ）
+  ・キャラはおへやのまんなか、下のほうに立ちます。まんなか下はあけておいてもらうと、きれいに立てます
+  ・前のおへやの絵は、上書きせずに room_old_（日時）.png という名前で残ります
+
+
+------------------------------------------------------------
+■ 共通のお願い（日本語）
+------------------------------------------------------------
+ドット絵（ピクセルアート）の、ゲームのおへやの背景を1枚描いてください。
+・2Dゲームのように、正面から見た部屋（奥の壁がまっすぐ正面、床は下のほう4分の1くらい）
+・横5：縦4 くらいの横長
+・かわいいパステル調、太めの輪郭、レトロなゲームのドット絵の雰囲気
+・部屋のまんなか下は、キャラクターが立てるように空けておく（家具は左右と奥の壁ぞいに）
+・人やキャラクターは描かない。文字も入れない
+・（夜の絵もほしいとき）同じ部屋で、夜。照明を落として、窓の外は夜空、ランプがあたたかく光っている
+
+------------------------------------------------------------
+■ おへやの説明（その子のぶんだけ、上のお願いのあとにつける）
+------------------------------------------------------------
+【キャンディ】
+ピンクとミントグリーンのかわいい女の子の部屋。キャンディの瓶がならんだ棚、ロリポップのクッション、
+ハート形の鏡、レースのカーテンの窓、ふわふわのラグ。壁はピンクのストライプ。
+
+【ドーナツ】
+オレンジとクリーム色の、あたたかいカフェ風の部屋。木の棚にドーナツのポスターやマグカップ、
+観葉植物、レコードプレーヤー、ミント色の小物。夕日の入る窓。
+
+【ケーキ】
+紫と薄いピンクの、夢みたいなベッドルーム。ショートケーキ柄のクッション、星のガーランド、
+本がつまった本棚、ぬいぐるみ、夜空の見える窓、やさしい光のランプ。
+
+【アイス】
+ミントと紫の、すっきりした男の子の部屋。ゲーム機とテレビ、アイスクリームのポスター、
+スニーカーの棚、ネオンっぽい小さな照明、ブラインドのある窓。
+
+
+------------------------------------------------------------
+■ English version
+------------------------------------------------------------
+Draw one pixel-art background of a game room.
+- Front view like a 2D game (back wall facing straight on, floor in the bottom quarter)
+- Wide, about 5:4
+- Cute pastel colors, bold outlines, retro game pixel-art mood
+- Keep the lower center empty so a character can stand there (furniture along the sides and back wall)
+- No people or characters, no text
+- (Night version, if wanted) the same room at night: lights dimmed, night sky in the window, a warm glowing lamp
+
+Room notes:
+- Candy: a cute pink and mint girl's room, shelves of candy jars, lollipop cushions, heart mirror,
+  window with lace curtains, fluffy rug, pink striped wallpaper.
+- Donut: a warm orange and cream café-like room, wooden shelves with donut posters and mugs, house plants,
+  a record player, mint accents, a window with sunset light.
+- Cake: a dreamy purple and light pink bedroom, shortcake-pattern cushions, star garland, a full bookshelf,
+  plush toys, a window with a starry sky, a softly glowing lamp.
+- Ice: a clean mint and purple boy's room, game console and TV, ice cream poster, sneaker shelf,
+  small neon-like lights, a window with blinds.
+
+
+------------------------------------------------------------
+■ くわしい人むけ：窓とテレビの場所
+------------------------------------------------------------
+  その子のフォルダの meta.json に、次の2つを書き足すと、
+  窓に雨や雪が降り、「いっしょにゲーム」のときにテレビにゲーム画面が映ります（100×80 の中の位置）。
+    "room_window": [左, 上, 右, 下],
+    "room_tv": [左, 上, 右, 下]
+  例："room_window": [8, 8, 33, 32], "room_tv": [75, 41, 89, 51]
+
+  窓の位置があると、夜の絵がなくても、窓の空が 朝・夕方・夜（星と月）に変わります。
+  さらに、夜に光らせたいランプを [x, y, 光の大きさ] で書くと、夜はそのまわりがあたたかく光ります。
+    "room_lamps": [[68, 30, 16]]
+  もとの絵の窓が夕焼けのときは、空のところと、絵の時間を書きます（昼は青空に塗りかえます）。
+    "room_sky_box": [39, 10, 55, 23], "room_sky_time": "dusk"
+  夜の部屋の絵のときは "room_sky_time": "night"。夜はそのまま、朝・昼・夕方は明かりをつけたように明るくします。

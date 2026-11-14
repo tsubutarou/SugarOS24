@@ -1,0 +1,62 @@
+{
+  "meta": {
+    "version": 1,
+    "notes": "おやつデータ。iconは electro_girl_data/snacks/ の画像。hunger=おなかの回復、mood=ごきげん"
+  },
+  "snacks": [
+    {
+      "id": "cookie",
+      "name": "クッキー",
+      "icon": "cookie.png",
+      "hunger": 18,
+      "mood": 4,
+      "affection": 1,
+      "react_tag": "react_snack_cookie"
+    },
+    {
+      "id": "choco",
+      "name": "チョコ",
+      "icon": "choco.png",
+      "hunger": 14,
+      "mood": 6,
+      "affection": 1,
+      "react_tag": "react_snack_choco"
+    },
+    {
+      "id": "candy",
+      "name": "キャンディ",
+      "icon": "candy.png",
+      "hunger": 10,
+      "mood": 5,
+      "affection": 1,
+      "react_tag": "react_snack_candy"
+    },
+    {
+      "id": "shortcake",
+      "name": "ショートケーキ",
+      "icon": "shortcake.png",
+      "hunger": 24,
+      "mood": 8,
+      "affection": 2,
+      "react_tag": "react_snack_shortcake"
+    },
+    {
+      "id": "donut",
+      "name": "ドーナツ",
+      "icon": "donut.png",
+      "hunger": 20,
+      "mood": 6,
+      "affection": 1,
+      "react_tag": "react_snack_donut"
+    },
+    {
+      "id": "ice",
+      "name": "アイス",
+      "icon": "ice.png",
+      "hunger": 10,
+      "mood": 7,
+      "affection": 1,
+      "react_tag": "react_snack_ice"
+    }
+  ]
+}

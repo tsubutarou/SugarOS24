@@ -1,0 +1,435 @@
+{
+  "meta": {
+    "version": 1,
+    "notes": "会話データ。好きに増やしてOK"
+  },
+  "chatter": {
+    "interval_sec": [
+      6.0,
+      13.0
+    ],
+    "chance_per_tick": 1.0
+  },
+  "lines": [
+    {
+      "id": "idle_001",
+      "tags": [
+        "idle"
+      ],
+      "text": "ねえねえ、今なにしてる？"
+    },
+    {
+      "id": "idle_002",
+      "tags": [
+        "idle"
+      ],
+      "text": "それ、集中してる顔。"
+    },
+    {
+      "id": "idle_003",
+      "tags": [
+        "idle"
+      ],
+      "text": "今日の気分、甘いの寄り。"
+    },
+    {
+      "id": "music_001",
+      "tags": [
+        "music"
+      ],
+      "text": "♪ いま脳内BGMこれ。"
+    },
+    {
+      "id": "music_002",
+      "tags": [
+        "music"
+      ],
+      "text": "ね、作業用プレイリスト作ろ？"
+    },
+    {
+      "id": "sleep_001",
+      "tags": [
+        "sleep"
+      ],
+      "text": "……zzz"
+    },
+    {
+      "id": "sleep_002",
+      "tags": [
+        "sleep"
+      ],
+      "text": "起きてる…たぶん…"
+    },
+    {
+      "id": "grumpy_001",
+      "tags": [
+        "grumpy"
+      ],
+      "text": "むす。放置はだめ。"
+    },
+    {
+      "id": "grumpy_002",
+      "tags": [
+        "grumpy"
+      ],
+      "text": "さみしいって言ったら負けな気がする。"
+    },
+    {
+      "id": "react_snack_001",
+      "tags": [
+        "react_snack"
+      ],
+      "text": "おやつ！天才！"
+    },
+    {
+      "id": "react_snack_002",
+      "tags": [
+        "react_snack"
+      ],
+      "text": "……これ、優勝。"
+    },
+    {
+      "id": "react_pet_001",
+      "tags": [
+        "react_pet"
+      ],
+      "text": "なでるの、合法？"
+    },
+    {
+      "id": "react_pet_002",
+      "tags": [
+        "react_pet"
+      ],
+      "text": "ちょ、今のずるい。"
+    },
+    {
+      "id": "react_lights_off_001",
+      "tags": [
+        "react_lights_off"
+      ],
+      "text": "くらいの、落ち着く。"
+    },
+    {
+      "id": "react_lights_on_001",
+      "tags": [
+        "react_lights_on"
+      ],
+      "text": "まぶしっ。現実だ…"
+    },
+    {
+      "id": "greet_short_001",
+      "tags": [
+        "greet_short"
+      ],
+      "text": "おかえり〜。聞いて聞いて。"
+    },
+    {
+      "id": "greet_long_001",
+      "tags": [
+        "greet_long"
+      ],
+      "text": "ひさしぶり。ちょっとだけ…さみしかった。"
+    },
+    {
+      "id": "bye_001",
+      "tags": [
+        "bye"
+      ],
+      "text": "またね。続きはまた今度！"
+    },
+    {
+      "id": "bye_002",
+      "tags": [
+        "bye"
+      ],
+      "text": "じゃ、見送ってあげる。…またね。"
+    },
+    {
+      "id": "tap_001",
+      "tags": [
+        "tap"
+      ],
+      "text": "なになに？呼んだ？"
+    },
+    {
+      "id": "tap_002",
+      "tags": [
+        "tap"
+      ],
+      "text": "いま喋っていいターン？"
+    },
+    {
+      "id": "bg_001",
+      "tags": [
+        "react_bg"
+      ],
+      "text": "背景変えよ。気分転換。"
+    },
+    {
+      "id": "react_snack_cookie_001",
+      "tags": [
+        "react_snack_cookie"
+      ],
+      "text": "クッキー！サクサクは正義。"
+    },
+    {
+      "id": "react_snack_cookie_002",
+      "tags": [
+        "react_snack_cookie"
+      ],
+      "text": "焼き菓子の香り、脳がとろける。"
+    },
+    {
+      "id": "react_snack_choco_001",
+      "tags": [
+        "react_snack_choco"
+      ],
+      "text": "チョコは燃料。科学的に。たぶん。"
+    },
+    {
+      "id": "react_snack_choco_002",
+      "tags": [
+        "react_snack_choco"
+      ],
+      "text": "カカオ…尊い…。"
+    },
+    {
+      "id": "react_snack_candy_001",
+      "tags": [
+        "react_snack_candy"
+      ],
+      "text": "キャンディは携帯できる幸せ。"
+    },
+    {
+      "id": "react_snack_candy_002",
+      "tags": [
+        "react_snack_candy"
+      ],
+      "text": "舐めてる間、時間がゆっくりになる。"
+    },
+    {
+      "id": "hungry_100",
+      "tags": [
+        "hungry"
+      ],
+      "text": "おなかすいた…おやつの時間では？"
+    },
+    {
+      "id": "hungry_101",
+      "tags": [
+        "hungry"
+      ],
+      "text": "ぐう。今のはわたしじゃない。たぶん。"
+    },
+    {
+      "id": "sleepy_100",
+      "tags": [
+        "sleepy"
+      ],
+      "text": "ねむ…まぶたが重い…"
+    },
+    {
+      "id": "sleepy_101",
+      "tags": [
+        "sleepy"
+      ],
+      "text": "電気消してくれたら、すぐ寝れる自信ある。"
+    },
+    {
+      "id": "wake_100",
+      "tags": [
+        "wake"
+      ],
+      "text": "ん…おはよ。何時？"
+    },
+    {
+      "id": "wake_101",
+      "tags": [
+        "wake"
+      ],
+      "text": "ふぁ…よく寝た。きみ、まだいる？"
+    },
+    {
+      "id": "react_game_start_100",
+      "tags": [
+        "react_game_start"
+      ],
+      "text": "コントローラー持った！何する？"
+    },
+    {
+      "id": "react_game_start_101",
+      "tags": [
+        "react_game_start"
+      ],
+      "text": "いっしょにやろ。足ひっぱらないから。"
+    },
+    {
+      "id": "react_game_100",
+      "tags": [
+        "react_game"
+      ],
+      "text": "今のナイス！"
+    },
+    {
+      "id": "react_game_101",
+      "tags": [
+        "react_game"
+      ],
+      "text": "ちょっと待って、そこ宝箱ある。"
+    },
+    {
+      "id": "react_game_102",
+      "tags": [
+        "react_game"
+      ],
+      "text": "一回休憩する？…やっぱりもう1回。"
+    },
+    {
+      "id": "react_game_end_100",
+      "tags": [
+        "react_game_end"
+      ],
+      "text": "たのしかった〜。またやろ。"
+    },
+    {
+      "id": "react_snack_shortcake_100",
+      "tags": [
+        "react_snack_shortcake"
+      ],
+      "text": "いちご最後に食べる派。"
+    },
+    {
+      "id": "react_snack_shortcake_101",
+      "tags": [
+        "react_snack_shortcake"
+      ],
+      "text": "ふわふわの層、ぜんぶ好き。"
+    },
+    {
+      "id": "react_snack_donut_100",
+      "tags": [
+        "react_snack_donut"
+      ],
+      "text": "穴の分カロリーゼロ理論。"
+    },
+    {
+      "id": "react_snack_donut_101",
+      "tags": [
+        "react_snack_donut"
+      ],
+      "text": "ドーナツの穴から世界をのぞく。"
+    },
+    {
+      "id": "react_snack_ice_100",
+      "tags": [
+        "react_snack_ice"
+      ],
+      "text": "つめた！頭キーンってした。"
+    },
+    {
+      "id": "react_snack_ice_101",
+      "tags": [
+        "react_snack_ice"
+      ],
+      "text": "とけるまえに食べる。急げ。"
+    },
+    {
+      "id": "full_100",
+      "tags": [
+        "full"
+      ],
+      "text": "もうおなかいっぱい…あとでね。"
+    },
+    {
+      "id": "idle_100",
+      "tags": [
+        "idle"
+      ],
+      "text": "資料、今日はどれ眺める？"
+    },
+    {
+      "id": "idle_101",
+      "tags": [
+        "idle"
+      ],
+      "text": "ここ、あったかくて好き。"
+    },
+    {
+      "id": "music_on_001",
+      "tags": [
+        "music_on"
+      ],
+      "text": "あ、この曲！ノっちゃお。"
+    },
+    {
+      "id": "music_on_002",
+      "tags": [
+        "music_on"
+      ],
+      "text": "♪ レコードかかった〜"
+    },
+    {
+      "id": "music_on_003",
+      "tags": [
+        "music_on"
+      ],
+      "text": "いいね、この感じ。"
+    },
+    {
+      "id": "music_004",
+      "tags": [
+        "music"
+      ],
+      "text": "♪ ふんふん…"
+    },
+    {
+      "id": "music_off_001",
+      "tags": [
+        "music_off"
+      ],
+      "text": "あれ、止まっちゃった。"
+    },
+    {
+      "id": "music_off_002",
+      "tags": [
+        "music_off"
+      ],
+      "text": "ふう、いい曲だった。"
+    },
+    {
+      "id": "weather_rain_001",
+      "tags": [
+        "weather_rain"
+      ],
+      "text": "あ、雨降ってきた。"
+    },
+    {
+      "id": "weather_rain_002",
+      "tags": [
+        "weather_rain"
+      ],
+      "text": "雨の音、ちょっと好き。"
+    },
+    {
+      "id": "weather_snow_001",
+      "tags": [
+        "weather_snow"
+      ],
+      "text": "ゆき！外まっしろになるかな。"
+    },
+    {
+      "id": "weather_snow_002",
+      "tags": [
+        "weather_snow"
+      ],
+      "text": "さむそ〜。ここはあったかいけど。"
+    },
+    {
+      "id": "weather_thunder_001",
+      "tags": [
+        "weather_thunder"
+      ],
+      "text": "ひゃっ、かみなり…！"
+    }
+  ]
+}

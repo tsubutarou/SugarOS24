@@ -1,0 +1,26 @@
+{
+  "id": "cake_2",
+  "name": "ケーキ",
+  "credit": "デザイン：みかんのつぶ／ポーズ絵：AI",
+  "full_pose": true,
+  "snack_hand": [
+    44,
+    35
+  ],
+  "colorway": "blue",
+  "imported": "2026-11-01 08:26:36",
+  "notes": "キャラ取り込みで作ったキャラ。ポーズごとの1枚絵（body_<ポーズ>）だけで描く。source フォルダに、取り込んだもとの絵のコピーがある。",
+  "room_window": [
+    37,
+    10,
+    56,
+    31
+  ],
+  "room_sky_box": [
+    37,
+    10,
+    56,
+    26
+  ],
+  "room_sky_time": "night"
+}
