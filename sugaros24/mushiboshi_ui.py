@@ -989,3 +989,52 @@ def colorway_menu(current, apply, supported=True):
               for n, k in COLORWAY_NAMES]
     items += [{"type": "sep"}, {"type": "head", "label": "全ツール共通。数秒でみんな着替えるよ"}]
     return items
+
+
+# ---------- ふつうのフォルダから読む（Eagle がなくても使えるように） ----------
+
+def folder_label(path):
+    """登録したフォルダの、メニューに出す名前（いちばん下のフォルダ名）。"""
+    return os.path.basename(os.path.normpath(path)) or path
+
+
+def scan_media_folders(folders, kind_of, progress=None):
+    """ふつうのフォルダを奥まで探して、[path, path, 名前, tags, kind] のリストで返す（シアター・レコード用）。
+    kind_of(拡張子) が None を返すファイルは飛ばす。tags は「登録したフォルダの名前」と「その下のフォルダの名前」。"""
+    items = []
+    for root_dir in folders:
+        if not os.path.isdir(root_dir):
+            continue
+        top = folder_label(root_dir)
+        for cur, dirs, files in os.walk(root_dir):
+            dirs[:] = [x for x in dirs if not x.startswith(".") and not x.lower().endswith(".library")]
+            rel = os.path.relpath(cur, root_dir)
+            tags = [top] + ([] if rel == "." else [part for part in rel.split(os.sep) if part])
+            for fn in files:
+                if fn.startswith(".") or "." not in fn:
+                    continue
+                stem, ext = fn.rsplit(".", 1)
+                kind = kind_of(ext.lower())
+                if not kind:
+                    continue
+                path = os.path.join(cur, fn)
+                items.append([path, path, stem, tags, kind])
+                if progress and len(items) % 200 == 0:
+                    progress(len(items), len(items))
+    return items
+
+
+def load_folder_index(path, folders):
+    """前に探したフォルダの一覧と、探した時刻。登録したフォルダが変わっていたら None。"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if data.get("version") == 1 and data.get("folders") == list(folders):
+            return data.get("items", []), float(data.get("time", 0))
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
+def save_folder_index(path, folders, items):
+    save_json(path, {"version": 1, "folders": list(folders), "time": time.time(), "items": items}, pretty=False)

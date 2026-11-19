@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-資料フォトフレーム ver.2
+資料フォトフレーム ver.2.6
 Eagle ライブラリから選んだタグ（「参考資料」「自力絵」など）の画像をランダム表示する常駐ウィンドウ。
+Eagle がなくても、ふつうのフォルダの画像をそのまま流せる（右クリック →「読み込み先」→「ふつうのフォルダ」）。
+  フォルダのときは、タグの代わりに「フォルダの名前」で選ぶ（登録したフォルダ・その中のフォルダ）。
 見た目は「ドットSNS（タイムライン風）」と「ドット窓（デスクトップ風）」の2種類。
 
 操作:
   STOP / PLAY     … 再生と停止
   NEXT            … 次の画像へ
   ドラッグ        … ウィンドウを移動
-  ダブルクリック  … その画像を Eagle で開く
+  ダブルクリック  … その画像を Eagle で開く（フォルダのときは、ふつうの画像ビューアで開く）
   右クリック      … メニュー（表示するタグ / 並べる枚数 / 色縛り / 見た目 / 間隔 / サイズ など）
 
 必要なもの: pip install pillow
@@ -19,6 +21,7 @@ import os
 import queue
 import random
 import threading
+import time
 import webbrowser
 from collections import Counter, deque
 import tkinter as tk
@@ -30,11 +33,14 @@ from mushiboshi_ui import (COLORWAY_NAMES, dither_bar, log_errors, is_night_time
 
 from PIL import Image, ImageDraw, ImageOps, ImageTk
 
-APP_VERSION = "2.5"
+APP_VERSION = "2.6"
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(APP_DIR, "frame_config.json")
 INDEX_PATH = os.path.join(APP_DIR, "frame_index.json")
 INDEX_VERSION = 3
+FOLDER_INDEX_PATH = os.path.join(APP_DIR, "frame_folder_index.json")   # フォルダの画像の一覧
+FOLDER_INDEX_VERSION = 1
+RESCAN_HOURS = 12           # フォルダの一覧が、これより古ければ裏で探し直す
 
 IMAGE_EXTS = {"jpg", "jpeg", "png", "gif", "webp", "bmp"}
 BG = "#16161a"
@@ -49,7 +55,10 @@ COLOR_MIN_SHARE = 15
 CUSTOM_COLOR_RANGE = 70
 
 DEFAULT_CONFIG = {
+    "source": "eagle",      # 読み込み先 "eagle"=Eagle のライブラリ / "folder"=ふつうのフォルダ
     "library": "",          # 〇〇.library フォルダのパス
+    "folders": [],          # ふつうのフォルダのパス（いくつでも）
+    "other_tags": None,     # 読み込み先を切り替えたときの、もう片方のタグ選び（[tags, tag_choices]）
     "tags": ["参考資料"],                 # 表示するタグ（複数選ぶと「どれか付いていればOK」）
     "tag_choices": ["参考資料", "自力絵"],  # メニューに並べるタグ
     "interval_sec": 30,     # 切り替え間隔（秒）
@@ -603,6 +612,76 @@ def scan_library(library, progress=None):
     return items
 
 
+def folder_label(path):
+    return os.path.basename(os.path.normpath(path)) or path
+
+
+def scan_folders(folders, progress=None):
+    """ふつうのフォルダを奥まで探して、画像を [path, path, palettes, tags] のリストで返す。
+    tags は「登録したフォルダの名前」と「その下のフォルダの名前」（タグの代わりに使う）。"""
+    items = []
+    for root_dir in folders:
+        if not os.path.isdir(root_dir):
+            continue
+        top = folder_label(root_dir)
+        for cur, dirs, files in os.walk(root_dir):
+            dirs[:] = [x for x in dirs if not x.startswith(".") and not x.lower().endswith(".library")]
+            rel = os.path.relpath(cur, root_dir)
+            tags = [top] + ([] if rel == "." else [part for part in rel.split(os.sep) if part])
+            for fn in files:
+                if fn.startswith(".") or fn.rsplit(".", 1)[-1].lower() not in IMAGE_EXTS:
+                    continue
+                path = os.path.join(cur, fn)
+                items.append([path, path, [], tags])
+                if progress and len(items) % 500 == 0:
+                    progress(len(items), len(items))
+    return items
+
+
+def load_folder_index(folders):
+    """前に探したフォルダの一覧と、探した時刻。登録したフォルダが変わっていたら None。"""
+    try:
+        with open(FOLDER_INDEX_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        if data.get("version") == FOLDER_INDEX_VERSION and data.get("folders") == list(folders):
+            return data.get("items", []), float(data.get("time", 0))
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
+def save_folder_index(folders, items):
+    save_json(FOLDER_INDEX_PATH, {"version": FOLDER_INDEX_VERSION, "folders": list(folders),
+                                  "time": time.time(), "items": items}, pretty=False)
+
+
+def read_file_text(path):
+    """ふつうのファイルの、情報欄に出す文字（サイズ・日付・ファイル名）。"""
+    parts = []
+    try:
+        with Image.open(path) as im:
+            parts.append(f"{im.width}×{im.height}")
+    except (OSError, ValueError):
+        pass
+    try:
+        parts.append(time.strftime("%Y/%m/%d", time.localtime(os.path.getmtime(path))))
+    except OSError:
+        pass
+    parts.append(os.path.basename(path))
+    return "　".join(parts)
+
+
+def palette_of(img):
+    """表示用に読んだ絵から、色見本チップ用の5色を作る（フォルダの画像には Eagle の色情報がないので）。"""
+    try:
+        small = img.convert("RGB").resize((32, 32))
+        q = small.quantize(colors=5).convert("RGB")
+        total = 32 * 32
+        return [[c[0], c[1], c[2], n / total * 100] for n, c in sorted(q.getcolors(64) or [], reverse=True)]
+    except (OSError, ValueError):
+        return []
+
+
 def read_meta_text(path):
     """Eagle の metadata.json から、情報欄に出す文字（名前・サイズ・日付）を作る。"""
     try:
@@ -891,7 +970,9 @@ class PhotoFrame:
 
         tag_items = [{"type": "check", "label": t, "checked": t in c["tags"],
                       "cmd": lambda t=t: self.toggle_tag(t)} for t in c["tag_choices"]]
-        tag_items += [{"type": "sep"}, {"type": "cmd", "label": "タグを追加…", "cmd": self.add_tag}]
+        word = self.tag_word()
+        tag_items += [{"type": "sep"}, {"type": "cmd", "label": "タグを追加…" if word == "タグ" else "中のフォルダから選ぶ…",
+                                        "cmd": self.add_tag}]
         if len(c["tag_choices"]) > 1:
             tag_items.append({"type": "sub", "label": "メニューから外す",
                               "items": [{"type": "cmd", "label": t, "cmd": lambda t=t: self.remove_tag_choice(t)}
@@ -936,27 +1017,40 @@ class PhotoFrame:
             {"type": "check", "label": "最前面に表示", "checked": c["topmost"],
              "cmd": pick(self.var_topmost, not c["topmost"], self.set_topmost)},
         ]
-        library = [{"type": "cmd", "label": "画像リストを再読み込み", "cmd": lambda: self.load_items(force=True)},
-                   {"type": "cmd", "label": "ライブラリを選び直す", "cmd": self.rechoose_library}]
+        folder = self.folder_mode()
+        library = [{"type": "radio", "label": "Eagle のライブラリ", "checked": not folder,
+                    "cmd": lambda: self.set_source("eagle")},
+                   {"type": "radio", "label": "ふつうのフォルダ", "checked": folder,
+                    "cmd": lambda: self.set_source("folder")},
+                   {"type": "sep"},
+                   {"type": "cmd", "label": "画像リストを再読み込み", "cmd": lambda: self.load_items(force=True)}]
+        if folder:
+            library += [{"type": "cmd", "label": "フォルダを追加…", "cmd": self.add_folder},
+                        {"type": "sub", "label": "フォルダを外す", "enabled": bool(c["folders"]),
+                         "items": [{"type": "cmd", "label": short(folder_label(f), 16), "right": "" if os.path.isdir(f) else "見つからない",
+                                    "cmd": lambda f=f: self.remove_folder(f)} for f in c["folders"]]}]
+        else:
+            library.append({"type": "cmd", "label": "ライブラリを選び直す", "cmd": self.rechoose_library})
         paused = self.var_paused.get()
         tile = self.menu_tile
         return [
             {"type": "cmd", "label": "次の画像", "cmd": self.show_next},
             {"type": "cmd", "label": "前の画面に戻る", "cmd": self.go_back, "enabled": self.hpos > 0},
             {"type": "cmd", "label": "再生する" if paused else "一時停止", "cmd": self.toggle_play},
-            {"type": "cmd", "label": "この画像を Eagle で開く", "cmd": lambda: self.open_in_eagle(tile),
+            {"type": "cmd", "label": "この画像を開く" if folder else "この画像を Eagle で開く",
+             "cmd": lambda: self.open_in_eagle(tile),
              "enabled": bool(tile and tile["item"])},
             {"type": "sep"},
             {"type": "head", "label": "流す画像"},
-            {"type": "sub", "label": "タグ", "items": tag_items,
+            {"type": "sub", "label": word, "items": tag_items,
              "right": short("＋".join(c["tags"])) if c["tags"] else "なし"},
-            {"type": "sub", "label": "色縛り", "items": color_items,
-             "right": short(color_label(c["color"]))},
+            {"type": "sub", "label": "色縛り", "items": color_items, "enabled": not folder,
+             "right": "Eagle のみ" if folder else short(color_label(c["color"]))},
             {"type": "sub", "label": "並べる枚数", "items": grid_items,
              "right": next((n.split("（")[0] for n, v in GRIDS if v == c["grid"]), "")},
             {"type": "sep"},
             {"type": "sub", "label": "設定", "items": settings},
-            {"type": "sub", "label": "ライブラリ", "items": library},
+            {"type": "sub", "label": "読み込み先", "items": library, "right": "フォルダ" if folder else "Eagle"},
             {"type": "sep"},
             {"type": "cmd", "label": "終了", "cmd": self.quit},
             {"type": "head", "label": f"資料フォトフレーム ver.{APP_VERSION}"},
@@ -1030,10 +1124,87 @@ class PhotoFrame:
         save_config(self.cfg)
 
     # --- 起動とライブラリ ---
+    def folder_mode(self):
+        return self.cfg.get("source") == "folder"
+
+    def tag_word(self):
+        return "フォルダ" if self.folder_mode() else "タグ"
+
     def start(self):
-        if not self.cfg["library"]:
+        if not self.folder_mode() and not self.cfg["library"] and not self.cfg["folders"]:
+            self.first_choose()
+        self.load_items()
+
+    def first_choose(self):
+        """はじめて起動したとき：画像のフォルダ（Eagle のライブラリでもOK）を選んでもらう。"""
+        self.message("見せたい画像のフォルダを選んでね\n（Eagle のライブラリでもOK）")
+        path = self.ask_folder("画像のフォルダ（または Eagle のライブラリ）を選択")
+        if not path:
+            return
+        if is_library(path):
+            self.cfg["library"] = path
+            save_config(self.cfg)
+        else:
+            self.set_source("folder", load=False)
+            self.register_folder(path)
+
+    def ask_folder(self, title):
+        self.root.attributes("-topmost", False)
+        path = filedialog.askdirectory(parent=self.root, title=title)
+        self.root.attributes("-topmost", self.cfg["topmost"])
+        return os.path.normpath(path) if path else ""
+
+    def set_source(self, source, load=True):
+        """読み込み先を Eagle ⇔ フォルダで切り替える。タグ選びは、それぞれ覚えておく。"""
+        c = self.cfg
+        if c.get("source", "eagle") != source:
+            other = c.get("other_tags") or [[], []]
+            c["other_tags"] = [c["tags"], c["tag_choices"]]
+            c["tags"], c["tag_choices"] = list(other[0]), list(other[1])
+            c["source"] = source
+            save_config(c)
+            self.items, self.pool = [], []
+            self.clear_tiles()
+            self.cancel_timer()
+        if not load:
+            return
+        if source == "folder" and not c["folders"]:
+            self.add_folder()
+        elif source == "eagle" and not c["library"]:
             self.choose_library()
         self.load_items()
+
+    def register_folder(self, path):
+        c = self.cfg
+        if path not in c["folders"]:
+            c["folders"].append(path)
+        label = folder_label(path)
+        if label not in c["tag_choices"]:
+            c["tag_choices"].append(label)
+        if label not in c["tags"]:
+            c["tags"].append(label)
+        save_config(c)
+
+    def add_folder(self):
+        path = self.ask_folder("画像のフォルダを選択（中のフォルダも全部読むよ）")
+        if not path:
+            return
+        if is_library(path):
+            self.flash("そこは Eagle のライブラリだよ。\n「読み込み先」→「Eagle のライブラリ」で選んでね", 3500)
+            return
+        self.register_folder(path)
+        self.load_items(force=True)
+
+    def remove_folder(self, path):
+        c = self.cfg
+        if path in c["folders"]:
+            c["folders"].remove(path)
+        label = folder_label(path)
+        if not any(folder_label(f) == label for f in c["folders"]):
+            c["tags"] = [t for t in c["tags"] if t != label]
+            c["tag_choices"] = [t for t in c["tag_choices"] if t != label]
+        save_config(c)
+        self.load_items(force=True)
 
     def choose_library(self):
         self.message("Eagle のライブラリ（〇〇.library）を選んでね")
@@ -1052,7 +1223,46 @@ class PhotoFrame:
         self.choose_library()
         self.load_items()
 
+    def load_folder_items(self, force=False):
+        folders = self.cfg["folders"]
+        if not folders:
+            self.clear_tiles()
+            self.message("画像のフォルダが未設定だよ。\n右クリック →「読み込み先」→「フォルダを追加…」")
+            return
+        present = [f for f in folders if os.path.isdir(f)]
+        if not present:
+            self.message("フォルダが見つからないよ。\n外付けHDDはつながってる？\n（1分ごとに再確認するね）")
+            self.root.after(60_000, self.load_items)
+            return
+        quiet = False
+        if not force:
+            cached = load_folder_index(folders)
+            if cached is not None and cached[0]:
+                self.items = cached[0]
+                self.apply_filter()
+                if time.time() - cached[1] < RESCAN_HOURS * 3600:
+                    return
+                quiet = True   # 一覧が古いので、表示はそのままで、裏で探し直す
+        if self.scanning:
+            return
+        self.scanning = True
+        if not quiet:
+            self.message("フォルダを読み込んでいます…")
+
+        def work():
+            try:
+                items = scan_folders(present, progress=None if quiet else lambda n, h: self.q.put(("progress", n, h)))
+                save_folder_index(folders, items)
+                self.q.put(("scanned", items, quiet))
+            except OSError as ex:
+                self.q.put(("scan_error", str(ex)))
+
+        threading.Thread(target=work, daemon=True).start()
+
     def load_items(self, force=False):
+        if self.folder_mode():
+            self.load_folder_items(force)
+            return
         lib = self.cfg["library"]
         if not lib:
             self.message("ライブラリが未設定だよ。\n右クリック →「ライブラリを選び直す」")
@@ -1083,18 +1293,24 @@ class PhotoFrame:
         threading.Thread(target=work, daemon=True).start()
 
     # --- 色縛り ---
-    def apply_filter(self, announce=False):
-        color = self.cfg["color"]
+    def apply_filter(self, announce=False, quiet=False):
+        folder = self.folder_mode()
+        color = "" if folder else self.cfg["color"]   # フォルダの画像には色の情報がないので、色縛りは Eagle だけ
         tags = set(self.cfg["tags"])
         pool = [it for it in self.items if tags.intersection(it[3])]
         if color:
             pool = [it for it in pool if matches_color(it[2], color)]
+        had = bool(self.pool)
         self.pool = pool
+        if quiet and had and pool:   # 裏で探し直しただけ：表示中の画像はそのまま
+            self.refresh_frame()
+            return
         tag_text = "＋".join(self.cfg["tags"])
+        word = self.tag_word()
         if not tags:
             self.clear_tiles()
             self.cancel_timer()
-            self.message("表示するタグが選ばれていないよ。\n右クリック →「表示するタグ」")
+            self.message(f"表示する{word}が選ばれていないよ。\n右クリック →「{word}」")
             return
         if not self.pool:
             self.clear_tiles()
@@ -1103,7 +1319,7 @@ class PhotoFrame:
                 self.message(f"「{tag_text}」×「{color_label(color)}」の画像は見つからなかったよ。\n"
                              "右クリック →「色縛り」で変えてね")
             else:
-                self.message(f"「{tag_text}」タグの画像が見つからなかったよ")
+                self.message(f"「{tag_text}」{word}の画像が見つからなかったよ")
             return
         self.hide_message()
         self.refresh_all()
@@ -1122,12 +1338,13 @@ class PhotoFrame:
     def add_tag(self):
         """画像に付いているタグを件数つきで一覧にして、そこから選ぶ。"""
         counts = Counter(t for it in self.items for t in it[3])
+        word = self.tag_word()
         if not counts:
-            self.flash("タグの付いた画像がまだ見つかっていないよ", 2500)
+            self.flash("画像がまだ見つかっていないよ", 2500)
             return
         entries = [(t, f"{t}（{n:,}件）", t in self.cfg["tags"]) for t, n in counts.most_common()]
-        picked = pick_items(self.root, self.menu_theme(), "表示するタグを選ぶ",
-                            "表示したいタグを選んでね", entries, near=self.root)
+        picked = pick_items(self.root, self.menu_theme(), f"表示する{word}を選ぶ",
+                            f"表示したい{word}を選んでね", entries, near=self.root)
         if not picked:
             return
         for t in picked:
@@ -1139,7 +1356,7 @@ class PhotoFrame:
         self.apply_filter(announce=True)
 
     def remove_tag_choice(self, t):
-        if len(self.cfg["tag_choices"]) <= 1:
+        if len(self.cfg["tag_choices"]) <= 1 and not self.folder_mode():
             return
         self.cfg["tag_choices"].remove(t)
         if t in self.cfg["tags"]:
@@ -1183,6 +1400,7 @@ class PhotoFrame:
             self.want[i] = item
         gen, cell, cover, fit_odd = self.gen, self.cell, self.cfg["grid"] > 1, self.cfg["fit_odd"]
         need_meta = item[0] not in self.meta
+        folder = self.folder_mode()
 
         def work():
             try:
@@ -1190,7 +1408,9 @@ class PhotoFrame:
             except Exception:
                 self.q.put(("image_error", gen, i, item))
                 return
-            meta = read_meta_text(item[1]) if need_meta else None
+            if folder and not item[2]:
+                item[2][:] = palette_of(img)
+            meta = (read_file_text if folder else read_meta_text)(item[1]) if need_meta else None
             self.q.put(("image", gen, i, item, img, meta))
 
         threading.Thread(target=work, daemon=True).start()
@@ -1267,12 +1487,12 @@ class PhotoFrame:
                 msg = self.q.get_nowait()
                 kind = msg[0]
                 if kind == "progress":
-                    self.message("ライブラリを読み込んでいます…\n"
+                    self.message(("フォルダ" if self.folder_mode() else "ライブラリ") + "を読み込んでいます…\n"
                                  f"{msg[1]:,} 件確認済み")
                 elif kind == "scanned":
                     self.scanning = False
                     self.items = msg[1]
-                    self.apply_filter()
+                    self.apply_filter(quiet=len(msg) > 2 and msg[2])
                 elif kind == "scan_error":
                     self.scanning = False
                     self.message(f"読み込みに失敗したよ\n{msg[1]}")
@@ -1386,6 +1606,12 @@ class PhotoFrame:
 
     def open_in_eagle(self, tile):
         if not tile or not tile["item"] or not tile["item"][0]:
+            return
+        if self.folder_mode():   # フォルダの画像は、ふつうの画像ビューアで開く
+            try:
+                os.startfile(tile["item"][1])
+            except (AttributeError, OSError):
+                pass
             return
         url = f"eagle://item/{tile['item'][0]}"
         try:

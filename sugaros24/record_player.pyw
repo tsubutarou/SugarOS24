@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-資料レコード ver.1.3
+資料レコード ver.1.4
 Eagle ライブラリの音声ファイルを、ランダムに1曲ずつ流すレコードプレーヤー。
+Eagle がなくても、ふつうのフォルダの曲を流せる（右クリック →「読み込み先」→「ふつうのフォルダ」）。
+  フォルダのときは、タグの代わりに「フォルダの名前」で選ぶ（登録したフォルダ・その中のフォルダ）。
 曲が流れていると、エレクトロガールがときどきノッてくれる。
 たまに、模様の入ったスペシャルカラーレコード（6種類）が回る。見つけた盤はコレクションに残る。
 曲ごとにレコードのラベルの色が変わって、再生中はくるくる回る。
@@ -10,7 +12,7 @@ Eagle ライブラリの音声ファイルを、ランダムに1曲ずつ流す�
   PREV / STOP / NEXT … 前の曲 / 停止と再生 / 次の曲
   再生位置バー       … クリック・ドラッグでその位置へ
   音量バー           … クリック・ドラッグで音量
-  ダブルクリック     … 再生中のファイルを Eagle で開く
+  ダブルクリック     … 再生中のファイルを Eagle で開く（フォルダのときは、ふつうのアプリで開く）
   ドラッグ           … ウィンドウを移動
   右クリック         … メニュー（タグ / 流すファイル / カラー / サイズ など）
 
@@ -35,7 +37,8 @@ from PIL import Image, ImageDraw, ImageTk
 
 from mushiboshi_ui import (COLORWAY_NAMES, log_errors, is_night_time, PixelMenu, colorway_cmap, colorway_menu,
                            colorway_theme, load_colorway, pick_items, recolor, save_colorway, save_now_playing,
-                           ui_font, Scale, PX_FONT, hexc, mix, px_pattern, px_text, px_text_w, save_json)
+                           ui_font, Scale, PX_FONT, hexc, mix, px_pattern, px_text, px_text_w, save_json,
+                           folder_label, scan_media_folders, load_folder_index, save_folder_index)
 
 
 def _add_vlc_dll_dirs():
@@ -62,19 +65,28 @@ except Exception as ex:
     vlc = None
     VLC_ERROR = str(ex)
 
-APP_VERSION = "1.3"
+APP_VERSION = "1.4"
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(APP_DIR, "record_config.json")
 INDEX_PATH = os.path.join(APP_DIR, "record_index.json")
 THEATER_INDEX = os.path.join(APP_DIR, "theater_index.json")   # シアターの一覧があれば借りる
 BORROW_CONFIGS = ("theater_config.json", "frame_config.json")
 INDEX_VERSION = 1
+FOLDER_INDEX_PATH = os.path.join(APP_DIR, "record_folder_index.json")   # フォルダの曲の一覧
+RESCAN_HOURS = 12           # フォルダの一覧が、これより古ければ裏で探し直す
 
 VIDEO_EXTS = {"mp4", "webm", "mov", "mkv", "avi", "m4v", "flv", "wmv", "mpg", "mpeg", "ts"}
 AUDIO_EXTS = {"mp3", "wav", "m4a", "ogg", "flac", "aac", "opus", "wma"}
 
+
+def folder_kind(ext):
+    return "video" if ext in VIDEO_EXTS else "audio" if ext in AUDIO_EXTS else None
+
 DEFAULT_CONFIG = {
+    "source": "eagle",      # 読み込み先 "eagle"=Eagle のライブラリ / "folder"=ふつうのフォルダ
     "library": "",
+    "folders": [],          # ふつうのフォルダのパス（いくつでも）
+    "other_tags": None,     # 読み込み先を切り替えたときの、もう片方のタグ選び
     "tags": ["参考資料"],
     "tag_choices": ["参考資料", "自力絵"],
     "kinds": "audio",      # "audio"=音声ファイルだけ / "both"=動画の音も
@@ -690,9 +702,127 @@ class RecordPlayer:
                 hint = "（Python と VLC の 64bit / 32bit が合っていないかも）"
             self.show_message("VLC が見つからないよ。VLC と python-vlc を入れてね" + hint)
             return
-        if not self.cfg["library"]:
+        if not self.folder_mode() and not self.cfg["library"] and not self.cfg["folders"]:
+            self.first_choose()
+        self.load_items()
+
+    # --- 読み込み先（Eagle / ふつうのフォルダ） ---
+    def folder_mode(self):
+        return self.cfg.get("source") == "folder"
+
+    def tag_word(self):
+        return "フォルダ" if self.folder_mode() else "タグ"
+
+    def first_choose(self):
+        """はじめて起動したとき：曲のフォルダ（Eagle のライブラリでもOK）を選んでもらう。"""
+        self.show_message("曲のフォルダを選んでね（Eagle のライブラリでもOK）")
+        path = self.ask_folder("曲のフォルダ（または Eagle のライブラリ）を選択")
+        if not path:
+            return
+        if is_library(path):
+            self.cfg["library"] = path
+            save_config(self.cfg)
+        else:
+            self.set_source("folder", load=False)
+            self.register_folder(path)
+
+    def ask_folder(self, title):
+        self.root.attributes("-topmost", False)
+        path = filedialog.askdirectory(parent=self.root, title=title)
+        self.root.attributes("-topmost", self.cfg["topmost"])
+        return os.path.normpath(path) if path else ""
+
+    def set_source(self, source, load=True):
+        """読み込み先を Eagle ⇔ フォルダで切り替える。タグ選びは、それぞれ覚えておく。"""
+        c = self.cfg
+        if c.get("source", "eagle") != source:
+            other = c.get("other_tags") or [[], []]
+            c["other_tags"] = [c["tags"], c["tag_choices"]]
+            c["tags"], c["tag_choices"] = list(other[0]), list(other[1])
+            c["source"] = source
+            save_config(c)
+            self.items, self.pool = [], []
+            self.stop_player()
+            self.current = None
+            self.draw_button("play")
+        if not load:
+            return
+        if source == "folder" and not c["folders"]:
+            self.add_folder()
+        elif source == "eagle" and not c["library"]:
             self.choose_library()
         self.load_items()
+
+    def register_folder(self, path):
+        c = self.cfg
+        if path not in c["folders"]:
+            c["folders"].append(path)
+        label = folder_label(path)
+        if label not in c["tag_choices"]:
+            c["tag_choices"].append(label)
+        if label not in c["tags"]:
+            c["tags"].append(label)
+        save_config(c)
+
+    def add_folder(self):
+        path = self.ask_folder("曲のフォルダを選択（中のフォルダも全部読むよ）")
+        if not path:
+            return
+        if is_library(path):
+            self.show_message("そこは Eagle のライブラリだよ。「読み込み先」→「Eagle のライブラリ」で選んでね")
+            return
+        self.register_folder(path)
+        self.load_items(force=True)
+
+    def remove_folder(self, path):
+        c = self.cfg
+        if path in c["folders"]:
+            c["folders"].remove(path)
+        label = folder_label(path)
+        if not any(folder_label(f) == label for f in c["folders"]):
+            c["tags"] = [t for t in c["tags"] if t != label]
+            c["tag_choices"] = [t for t in c["tag_choices"] if t != label]
+        save_config(c)
+        self.load_items(force=True)
+
+    def load_folder_items(self, force=False):
+        folders = self.cfg["folders"]
+        if not folders:
+            self.stop_player()
+            self.current = None
+            self.draw_button("play")
+            self.show_message("曲のフォルダが未設定だよ。右クリック →「読み込み先」→「フォルダを追加…」")
+            return
+        present = [f for f in folders if os.path.isdir(f)]
+        if not present:
+            self.show_message("フォルダが見つからないよ。外付けHDDはつながってる？（1分ごとに再確認するね）")
+            self.root.after(60_000, self.load_items)
+            return
+        quiet = False
+        if not force:
+            cached = load_folder_index(FOLDER_INDEX_PATH, folders)
+            if cached is not None and cached[0]:
+                self.items = cached[0]
+                self.apply_filter()
+                if time.time() - cached[1] < RESCAN_HOURS * 3600:
+                    return
+                quiet = True   # 一覧が古いので、流しているものはそのままで、裏で探し直す
+        if self.scanning:
+            return
+        self.scanning = True
+        if not quiet:
+            self.show_message("フォルダを読み込んでいます…")
+
+        def work():
+            try:
+                items = scan_media_folders(present, folder_kind,
+                                           progress=None if quiet else lambda n, h: self.q.put(("progress", n, h)))
+                save_folder_index(FOLDER_INDEX_PATH, folders, items)
+                self.q.put(("scanned", items, quiet))
+            except OSError as ex:
+                self.q.put(("scan_error", str(ex)))
+
+        threading.Thread(target=work, daemon=True).start()
 
     def choose_library(self):
         self.root.attributes("-topmost", False)
@@ -707,6 +837,9 @@ class RecordPlayer:
         self.load_items(force=True)
 
     def load_items(self, force=False):
+        if self.folder_mode():
+            self.load_folder_items(force)
+            return
         lib = self.cfg["library"]
         if not lib:
             self.show_message("ライブラリが未設定だよ。右クリック →「ライブラリ」")
@@ -839,11 +972,12 @@ class RecordPlayer:
             while True:
                 msg = self.q.get_nowait()
                 if msg[0] == "progress":
-                    self.show_message(f"ライブラリを読み込んでいます…（{msg[1]:,} 件確認済み）")
+                    where = "フォルダ" if self.folder_mode() else "ライブラリ"
+                    self.show_message(f"{where}を読み込んでいます…（{msg[1]:,} 件確認済み）")
                 elif msg[0] == "scanned":
                     self.scanning = False
                     self.items = msg[1]
-                    self.apply_filter(restart=True)
+                    self.apply_filter(restart=not (len(msg) > 2 and msg[2]))   # 裏で探し直しただけなら、曲はそのまま
                 elif msg[0] == "scan_error":
                     self.scanning = False
                     self.show_message(f"読み込みに失敗したよ：{msg[1]}")
@@ -873,7 +1007,8 @@ class RecordPlayer:
 
         tag_items = [{"type": "check", "label": t, "checked": t in c["tags"],
                       "cmd": lambda t=t: self.toggle_tag(t)} for t in c["tag_choices"]]
-        tag_items += [{"type": "sep"}, {"type": "cmd", "label": "タグを追加…", "cmd": self.add_tag}]
+        tag_items += [{"type": "sep"}, {"type": "cmd", "label": "タグを追加…" if not self.folder_mode() else "中のフォルダから選ぶ…",
+                                        "cmd": self.add_tag}]
         kind_items = [{"type": "radio", "label": n, "checked": c["kinds"] == k,
                        "cmd": lambda k=k: self.set_kinds(k)} for n, k in KINDS]
         size_items = [{"type": "radio", "label": n, "checked": c["scale"] == v,
@@ -885,23 +1020,38 @@ class RecordPlayer:
              "right": next(n for n, v in SCALES if v == c["scale"])},
             {"type": "check", "label": "最前面に表示", "checked": c["topmost"], "cmd": self.toggle_topmost},
         ]
-        library = [{"type": "cmd", "label": "リストを再読み込み", "cmd": lambda: self.load_items(force=True)},
-                   {"type": "cmd", "label": "ライブラリを選び直す", "cmd": self.rechoose_library}]
+        folder = self.folder_mode()
+        library = [{"type": "radio", "label": "Eagle のライブラリ", "checked": not folder,
+                    "cmd": lambda: self.set_source("eagle")},
+                   {"type": "radio", "label": "ふつうのフォルダ", "checked": folder,
+                    "cmd": lambda: self.set_source("folder")},
+                   {"type": "sep"},
+                   {"type": "cmd", "label": "リストを再読み込み", "cmd": lambda: self.load_items(force=True)}]
+        if folder:
+            library += [{"type": "cmd", "label": "フォルダを追加…", "cmd": self.add_folder},
+                        {"type": "sub", "label": "フォルダを外す", "enabled": bool(c["folders"]),
+                         "items": [{"type": "cmd", "label": short(folder_label(f), 16),
+                                    "right": "" if os.path.isdir(f) else "見つからない",
+                                    "cmd": lambda f=f: self.remove_folder(f)} for f in c["folders"]]}]
+        else:
+            library.append({"type": "cmd", "label": "ライブラリを選び直す", "cmd": self.rechoose_library})
+        word = self.tag_word()
         return [
             {"type": "cmd", "label": "次の曲", "cmd": self.next_item, "enabled": bool(self.pool)},
             {"type": "cmd", "label": "前の曲", "cmd": self.prev_item, "enabled": bool(self.history)},
             {"type": "cmd", "label": "再生する" if self.paused else "一時停止", "cmd": self.toggle_play,
              "enabled": bool(self.current)},
-            {"type": "cmd", "label": "この曲を Eagle で開く", "cmd": self.open_in_eagle, "enabled": bool(self.current)},
+            {"type": "cmd", "label": "この曲のファイルを開く" if folder else "この曲を Eagle で開く", "cmd": self.open_in_eagle,
+             "enabled": bool(self.current)},
             {"type": "sep"},
             {"type": "head", "label": "流す曲"},
-            {"type": "sub", "label": "タグ", "items": tag_items,
+            {"type": "sub", "label": word, "items": tag_items,
              "right": short("＋".join(c["tags"])) if c["tags"] else "なし"},
             {"type": "sub", "label": "流すファイル", "items": kind_items,
              "right": next(n for n, k in KINDS if k == c["kinds"])},
             {"type": "sep"},
             {"type": "sub", "label": "設定", "items": settings},
-            {"type": "sub", "label": "ライブラリ", "items": library},
+            {"type": "sub", "label": "読み込み先", "items": library, "right": "フォルダ" if folder else "Eagle"},
             {"type": "sub", "label": "スペシャルレコード", "right": f"{len(c['rare_found'])}/{len(SPECIALS)}",
              "items": [{"type": "head", "label": f"{len(c['rare_found'])}/{len(SPECIALS)} 枚みつけた"}]
              + [{"type": "head", "label": ("★ " + SPECIAL_JA[k2]) if k2 in c["rare_found"] else "？？？"}
@@ -924,11 +1074,12 @@ class RecordPlayer:
     def add_tag(self):
         counts = Counter(t for it in self.items
                          if self.cfg["kinds"] == "both" or it[4] == "audio" for t in it[3])
+        word = self.tag_word()
         if not counts:
-            self.show_message("タグの付いた音声がまだ見つかっていないよ")
+            self.show_message("曲がまだ見つかっていないよ")
             return
         entries = [(t, f"{t}（{n:,}件）", t in self.cfg["tags"]) for t, n in counts.most_common()]
-        picked = pick_items(self.root, self.menu_theme(), "流すタグを選ぶ", "流したいタグを選んでね",
+        picked = pick_items(self.root, self.menu_theme(), f"流す{word}を選ぶ", f"流したい{word}を選んでね",
                             entries, near=self.root)
         if not picked:
             return
@@ -958,6 +1109,12 @@ class RecordPlayer:
 
     def open_in_eagle(self):
         if not self.current or not self.current[0]:
+            return
+        if self.folder_mode():   # フォルダのファイルは、ふつうのアプリで開く
+            try:
+                os.startfile(self.current[1])
+            except (AttributeError, OSError):
+                pass
             return
         url = f"eagle://item/{self.current[0]}"
         try:
