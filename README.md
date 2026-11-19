@@ -72,6 +72,14 @@
 |---|---|---|
 | ![](screenshots/launcher.png) | ![](screenshots/photo_frame.png) | ![](screenshots/electro_girl.png) |
 
+| ドットネオン街 | ドット水槽 | ドット温室 |
+|---|---|---|
+| ![](screenshots/neon.png) | ![](screenshots/aquarium.png) | ![](screenshots/greenhouse.png) |
+
+| 一方その頃 | ソリティア | シュガーフォール |
+|---|---|---|
+| ![](screenshots/meanwhile.png) | ![](screenshots/solitaire.png) | ![](screenshots/sugarfall.png) |
+
 ---
 
 ## 動かし方
