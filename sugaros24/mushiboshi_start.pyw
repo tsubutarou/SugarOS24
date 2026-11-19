@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-SugarOS 24 ランチャー ver.1.11
+SugarOS 24 ランチャー ver.1.12
 SugarOS 24 のツールを起動する、タスクバー風のランチャー。
 バーは START・MENU・時計だけのすっきりした形（ツールは MENU のメニュー画面から起動する）。
 設定で「バーにツールのボタンを出す」をオンにすると、前のように「ピン留め」と「起動中」のツールも並ぶ。
+起動するときは読み込み中の画面、終了するときは「GOOD NIGHT」の画面が出る（クリックでとばせる。設定でオフにもできる）。
 
 操作:
   START          … スタートメニュー（系統ごとのツール / ぜんぶ起動 / ぜんぶ終了 / カラー / 設定 など）
@@ -17,6 +18,7 @@ SugarOS 24 のツールを起動する、タスクバー風のランチャー。
 このファイルを、ツールと同じフォルダに置いてね。
 """
 import os
+import random
 import subprocess
 import sys
 import threading
@@ -30,7 +32,7 @@ from mushiboshi_ui import (COLORWAY_NAMES, BAYER4, load_weather, load_now_playin
                            load_colorway, load_time_settings, recolor, save_colorway, save_time_settings, mix,
                            px_text, px_text_w, load_json, save_json, hexc, ui_font, dither_bar)
 
-APP_VERSION = "1.11"
+APP_VERSION = "1.12"
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(APP_DIR, "launcher_config.json")
 DOCK_PATH = os.path.join(APP_DIR, "mushiboshi_dock.json")
@@ -57,7 +59,7 @@ TOOLS = [  # (key, メニューでの名前, バーでの名前, スクリプト
 GROUPS = [("資料を流す", ["photo", "theater", "kotonoha", "record"]), ("眺める", ["aqua", "green", "meanwhile", "nozoki"]),
           ("住人", ["girl"]), ("遊ぶ", ["mines", "cards", "sugar"]), ("道具", ["weather", "calendar"])]
 
-DEFAULT_CONFIG = {"dock": "float", "topmost": True, "x": 40, "y": 600, "show_clock_seconds": False, "show_tools": False,
+DEFAULT_CONFIG = {"dock": "float", "topmost": True, "x": 40, "y": 600, "show_clock_seconds": False, "show_tools": False, "show_splash": True,
                   "pinned": ["photo", "kotonoha", "record", "girl", "weather", "calendar"]}
 
 P = 2                       # 1ドットの大きさ（px）
@@ -285,6 +287,158 @@ class HomeMenu:
         self.t.destroy()
         self.app.home = None
         self.app.redraw()
+
+
+# --- 起動と終了の画面 ---
+SPLASH_W, SPLASH_H = 156, 86
+BOOT_STEPS = ["時計をあわせてるよ…", "色をえらんでるよ…", "ツールをならべてるよ…", "できたよ！"]
+NIGHT_STEPS = ["ツールをかたづけてるよ…", "あかりを消してるよ…", "おつかれさま！"]
+NIGHT_BG, NIGHT_BG2, NIGHT_OUT = (30, 32, 70), (44, 44, 92), (12, 12, 32)
+NIGHT_LIGHT, NIGHT_TEXT, NIGHT_SUB = (96, 94, 160), (255, 236, 170), (176, 174, 226)
+NIGHT_PANEL = (16, 18, 46)
+
+
+def greeting():
+    h = time.localtime().tm_hour
+    if 5 <= h < 11:
+        return "おはよう！"
+    if 11 <= h < 17:
+        return "こんにちは！"
+    return "こんばんは！"
+
+
+class Splash:
+    """ランチャーの起動画面（boot）と、終了するときのおやすみ画面（night）。クリックでとばせる。"""
+
+    def __init__(self, app, mode, on_done, length=1.8):
+        self.app, self.mode, self.on_done, self.length = app, mode, on_done, length
+        self.night = mode == "night"
+        self.start = time.time()
+        self.ending = False
+        self.W, self.H = SPLASH_W, SPLASH_H
+        rnd = random.Random(24)
+        self.stars = [(rnd.randrange(10, self.W - 26), rnd.randrange(19, 45), rnd.random()) for _ in range(22)]
+        t = self.t = tk.Toplevel(app.root)
+        t.overrideredirect(True)
+        t.attributes("-topmost", True)
+        self.canvas = c = tk.Canvas(t, width=self.W * P, height=self.H * P, highlightthickness=0, bd=0, cursor="hand2")
+        c.pack()
+        self.img_id = c.create_image(0, 0, anchor="nw")
+        big, small = ui_font(app.root, 12, bold=True), ui_font(app.root, 10, bold=True)
+        title = "SugarOS 24 おやすみ" if self.night else "SugarOS 24 きどう中"
+        self.title_id = c.create_text(17 * P, 7.5 * P, anchor="w", text=title, font=small)
+        self.msg_id = c.create_text(self.W / 2 * P, 54 * P, font=big,
+                                    text="おやすみなさい" if self.night else greeting())
+        self.sub_id = c.create_text(self.W / 2 * P, 63.5 * P, font=small)
+        c.bind("<ButtonRelease-1>", lambda e: self.finish())
+        left, top, right, bottom = work_area(app.root)
+        x = left + (right - left - self.W * P) // 2
+        y = top + (bottom - top - self.H * P) // 2 - 20
+        t.geometry(f"{self.W * P}x{self.H * P}+{x}+{y}")
+        self.step()
+
+    def colors(self):
+        if self.night:
+            return NIGHT_BG, NIGHT_BG2, NIGHT_OUT, NIGHT_LIGHT
+        return FACE, SOFT, DARK, LIGHT
+
+    def draw(self, p):
+        W, H = self.W, self.H
+        bg, bg2, out, light = self.colors()
+        im = Image.new("RGB", (W, H), bg)
+        d = ImageDraw.Draw(im)
+        for y in range(H):   # 地：うすい網点
+            for x in range(W):
+                if BAYER4[y % 4][x % 4] < 3:
+                    d.point((x, y), fill=bg2)
+        d.rectangle([0, 0, W - 1, H - 1], outline=out)
+        d.line([(1, 1), (W - 2, 1)], fill=light)
+        d.line([(1, 1), (1, H - 2)], fill=light)
+        bx0, by0, bx1, by1 = 8, 17, W - 9, 46
+        now = time.time() - self.start
+        if self.night:
+            dither_bar(d, 2, 2, W - 3, 12, (20, 20, 52), (74, 68, 140))
+            px_color(d, 5, 4, TRAY["moon"])
+            d.rectangle([bx0, by0, bx1, by1], fill=NIGHT_PANEL, outline=out)
+            for sx, sy, ph in self.stars:   # 星がちかちか
+                v = (ph + now * 1.3) % 1
+                if v < 0.75:
+                    d.point((sx, sy), fill=mix(NIGHT_PANEL, NIGHT_TEXT, 0.3 + 0.7 * abs(0.375 - v) / 0.375))
+                if v < 0.15:
+                    d.point([(sx - 1, sy), (sx + 1, sy), (sx, sy - 1), (sx, sy + 1)], fill=(110, 108, 170))
+            mx, my = bx1 - 14, by0 + 4   # 三日月
+            d.ellipse([mx, my, mx + 10, my + 10], fill=NIGHT_TEXT)
+            d.ellipse([mx + 4, my - 2, mx + 13, my + 8], fill=NIGHT_PANEL)
+            text, tx = "GOOD NIGHT", bx0 + 6
+            px_text(d, tx + 1, 30, text, (0, 0, 0), 3)
+            px_text(d, tx, 29, text, NIGHT_TEXT, 3)
+        else:
+            dither_bar(d, 2, 2, W - 3, 12, NAVY, (96, 120, 200))
+            px_color(d, 4, 3, CHERRY)
+            d.rectangle([bx0, by0, bx1, by1], fill=PINK)
+            for y in range(by0 + 2, by1 - 1, 3):
+                d.line([(bx0 + 2, y), (bx1 - 2, y)], fill=mix(PINK, LIGHT, 0.35))
+            k = int(now * 110) % (W + 60) - 20   # きらっと光が横切る
+            for i in range(5):
+                d.line([(k + i, by0 + 1), (k + i - 10, by1 - 1)], fill=mix(PINK, LIGHT, 0.6))
+            d.rectangle([1, by0, bx0 - 1, by1], fill=bg)    # 帯からはみ出した光を消す
+            d.rectangle([bx1 + 1, by0, W - 2, by1], fill=bg)
+            d.rectangle([bx0, by0, bx1, by1], outline=DARK)
+            text = "SUGAROS 24"
+            tx = (W - px_text_w(text, 3)) // 2
+            px_text(d, tx + 2, 26, text, DARK, 3)
+            px_text(d, tx, 24, text, LIGHT, 3)
+        # すすみぐあいのバー（起動はたまっていき、おやすみは減っていく）
+        x0, y0, x1, y1 = 12, 71, W - 13, 79
+        d.rectangle([x0, y0, x1, y1], fill=mix(bg, out, 0.25), outline=out)
+        n = (x1 - x0 - 2) // 6
+        lit = round(n * p)
+        seg = NIGHT_TEXT if self.night else PINK
+        pad = ((x1 - x0 - 2) - n * 6) // 2 + 1
+        for i in (range(n - lit) if self.night else range(lit)):
+            sx = x0 + 2 + pad + i * 6
+            d.rectangle([sx, y0 + 2, sx + 4, y1 - 2], fill=seg)
+            d.line([(sx, y0 + 2), (sx + 4, y0 + 2)], fill=mix(seg, LIGHT, 0.5))
+        cmap = None if self.night else self.app.cmap()
+        if cmap:
+            im = recolor(im, cmap)
+        self.photo = ImageTk.PhotoImage(im.resize((W * P, H * P), Image.NEAREST))
+        c = self.canvas
+        c.itemconfigure(self.img_id, image=self.photo)
+        col = lambda c_: (cmap or {}).get(c_, c_)   # noqa: E731
+        steps = NIGHT_STEPS if self.night else BOOT_STEPS
+        c.itemconfigure(self.sub_id, text=steps[min(len(steps) - 1, int(p * (len(steps) - 1) + 0.0001))],
+                        fill=hexc(NIGHT_SUB if self.night else col(SHADOW)))
+        c.itemconfigure(self.msg_id, fill=hexc(NIGHT_TEXT if self.night else col(DARK)))
+        c.itemconfigure(self.title_id, fill=hexc(NIGHT_SUB if self.night else col(LIGHT)))
+
+    def step(self):
+        if self.ending:
+            return
+        p = min(1.0, (time.time() - self.start) / self.length)
+        self.draw(p)
+        if p >= 1:
+            self.t.after(500 if self.night else 300, self.finish)
+            return
+        self.t.after(40, self.step)
+
+    def finish(self):
+        if self.ending:
+            return
+        self.ending = True
+        self.fade(1.0)
+
+    def fade(self, a):
+        a -= 0.12
+        if a <= 0:
+            self.t.destroy()
+            self.on_done()
+            return
+        try:
+            self.t.attributes("-alpha", a)
+        except tk.TclError:
+            pass
+        self.t.after(30, lambda: self.fade(a))
 
 
 def set_wallpaper(path):
@@ -635,6 +789,11 @@ class Launcher:
 
     def open_home(self):
         """デスクトップのアイコンから：閉じていれば開き、開いていれば前に出す。"""
+        if getattr(self, "_bye", False):
+            return
+        if getattr(self, "_booting", False):   # 起動画面が終わってから開く
+            self._open_after_boot = True
+            return
         if self.home is None:
             self.toggle_home()
         else:
@@ -697,6 +856,8 @@ class Launcher:
                                     "cmd": lambda k=key: self.toggle_pin(k)} for key, name, *_ in TOOLS]
                  + [{"type": "head", "label": "起動中のツールは、ピン留めしなくてもバーに出るよ"}]},
                 {"type": "check", "label": "最前面に表示", "checked": c["topmost"], "cmd": self.toggle_topmost},
+                {"type": "check", "label": "起動と終了の画面を出す", "checked": c.get("show_splash", True),
+                 "cmd": self.toggle_splash},
             ]},
             {"type": "sep"},
             {"type": "cmd", "label": "ランチャーを終了", "cmd": self.quit},
@@ -803,6 +964,10 @@ class Launcher:
         save_config(self.cfg)
         self.place()
 
+    def toggle_splash(self):
+        self.cfg["show_splash"] = not self.cfg.get("show_splash", True)
+        save_config(self.cfg)
+
     def toggle_topmost(self):
         self.cfg["topmost"] = not self.cfg["topmost"]
         save_config(self.cfg)
@@ -836,6 +1001,8 @@ class Launcher:
             self.home.redraw()
 
     def tick(self):
+        if getattr(self, "_bye", False):   # おやすみ画面のあいだは、もう何もしない
+            return
         name = load_colorway()   # ほかのツールで色が変わったら、こっちも着替える
         if name != self.colorway:
             self.colorway = name
@@ -851,12 +1018,45 @@ class Launcher:
             self.home.redraw()
         self.root.after(2000, self.tick)
 
+    def boot(self, open_menu=False):
+        """起動画面を出してから、バーを見せる。"""
+        self._open_after_boot = open_menu
+        if self.cfg.get("show_splash", True):
+            try:
+                self.root.attributes("-alpha", 0.0)
+                self._booting = True
+                Splash(self, "boot", self.boot_done)
+                return
+            except tk.TclError:
+                pass
+        self.boot_done()
+
+    def boot_done(self):
+        self._booting = False
+        self.root.attributes("-alpha", 1.0)
+        if self._open_after_boot:
+            self._open_after_boot = False
+            self.root.after(200, self.open_home)
+
     def quit(self):
+        if getattr(self, "_bye", False):
+            return
         save_config(self.cfg)
+        self._bye = True
         try:
             os.remove(DOCK_PATH)
         except OSError:
             pass
+        if self.cfg.get("show_splash", True):
+            try:
+                self.menu.close_all()
+                if self.home is not None:
+                    self.home.close()
+                self.root.attributes("-alpha", 0.0)
+                Splash(self, "night", self.root.destroy, length=2.0)
+                return
+            except tk.TclError:
+                pass
         self.root.destroy()
 
     def run(self):
@@ -866,8 +1066,7 @@ class Launcher:
 if __name__ == "__main__":
     try:
         app = Launcher()
-        if "--menu" in sys.argv:   # デスクトップの「SugarOS メニュー」から起動されたとき
-            app.root.after(400, app.open_home)
+        app.boot(open_menu="--menu" in sys.argv)   # --menu：デスクトップの「SugarOS メニュー」から起動されたとき
         app.run()
     except Exception:
         import traceback

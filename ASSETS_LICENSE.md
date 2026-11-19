@@ -10,6 +10,7 @@
 - `sugaros24/electro_girl_data/snacks/`（おやつの絵）
 - `sugaros24/electro_girl_data/` の中のセリフ・話題（`lines.json` `topics.json` `snacks.json`）
 - `screenshots/`（スクリーンショット）
+- `おまけ/`（おまけの壁紙。AI（ChatGPT）で生成した絵です）
 
 キャラクターのデザインは みかんのつぶ によるものです。
 
@@ -29,7 +30,7 @@
 
 ## English (summary)
 The source code is MIT licensed. The assets listed above (icons, character art, room art,
-snack art, dialogue data and screenshots) are **not** MIT licensed:
+snack art, dialogue data, screenshots and the bonus wallpaper in `おまけ/`, which was generated with ChatGPT) are **not** MIT licensed:
 © みかんのつぶ (Mikan no Tsubu). All rights reserved.
 
 - You may use them only to run SugarOS 24 on your own computer, and share screenshots of it.
