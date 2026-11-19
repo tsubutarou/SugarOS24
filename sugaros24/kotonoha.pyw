@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-資料ことのは ver.1.8
+資料ことのは ver.1.9
 ChatGPT のエクスポートや、Simplenote・ストーリープロッターなどの txt を読み込んで、
 文章をランダムに流す常駐ウィンドウ。SugarOS 24 のテキスト担当。
 
@@ -10,6 +10,9 @@ ChatGPT のエクスポートや、Simplenote・ストーリープロッター�
   COPY         … 表示中の文章をコピー
   RADIO        … ラジオ番組風の読み上げ（要 pip install pywin32）
   SPD つまみ   … 文字を打ち込む速さ（一番左で一瞬で全部表示）。ラジオ中は VOL（読み上げの音量）
+                 見た目が「ドット電光掲示板」のときは、文字が流れる速さ
+見た目「ドット電光掲示板」… 文章が1行になって、右から左へ流れていく（視線をほとんど動かさずに読める）。
+                 流れきったら次の文章へ。
   ダブルクリック … 元の文章をまるごと表示
   ドラッグ     … ウィンドウを移動
   右クリック   … メニュー（ソースの追加 / ChatGPTの発言 / 間隔 / 見た目 / サイズ など）
@@ -22,6 +25,7 @@ import queue
 import random
 import re
 import threading
+import time
 import zipfile
 from xml.sax.saxutils import escape as xml_escape
 from collections import deque
@@ -34,9 +38,9 @@ from mushiboshi_ui import (COLORWAY_NAMES, dither_bar, log_errors, is_night_time
                            save_colorway, Scale, PX_FONT, hexc, px_pattern, px_text, px_text_w, load_json,
                            save_json)
 
-from PIL import Image, ImageDraw, ImageTk
+from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageTk
 
-APP_VERSION = "1.8"
+APP_VERSION = "1.9"
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(APP_DIR, "kotonoha_config.json")
 INDEX_PATH = os.path.join(APP_DIR, "kotonoha_index.json")
@@ -59,11 +63,12 @@ DEFAULT_CONFIG = {
     "radio_rate": 0,         # 読み上げの速さ（-10〜10）
     "radio_volume": 100,     # 読み上げの音量（0〜100）
     "type_speed": 4,         # 1文字ずつ打ち込む速さ（0=演出なし、1〜10）
+    "led_speed": 4,          # 電光掲示板の流れる速さ（0〜10）
 }
 RADIO_RATES = [("ゆっくり", -2), ("ふつう", 0), ("はやめ", 2), ("かなりはやめ", 4)]
 INTERVALS = [("10秒", 10), ("20秒", 20), ("30秒", 30), ("1分", 60), ("3分", 180), ("10分", 600)]
 SIZES = [("ミニ", 240), ("小", 320), ("中", 480), ("大", 640)]
-SKIN_NAMES = [("ドットメモ帳", "notepad"), ("ドットSNS", "sns")]
+SKIN_NAMES = [("ドットメモ帳", "notepad"), ("ドットSNS", "sns"), ("ドット電光掲示板", "led")]
 ROLE_NAMES = [("自分の発言だけ", "user"), ("AIの発言だけ", "assistant"), ("両方", "both")]
 
 
@@ -95,7 +100,70 @@ SKINS = {
         title=(186, 226, 240), title2=(206, 238, 248), accent=(240, 96, 140), hover=(255, 222, 232),
         paper=(255, 252, 246), rule=None, margin=None,
         meta=(150, 140, 168), text=(58, 50, 78), font="Yu Gothic UI", pad_left=4),
+    "led": dict(
+        face=(206, 208, 218), out=(36, 36, 50), light=(255, 255, 255), shade=(150, 152, 168),
+        title=(44, 48, 72), title2=(104, 112, 150), accent=(240, 130, 30), hover=(255, 222, 186),
+        paper=(14, 10, 12), rule=None, margin=None,
+        meta=(110, 112, 130), text=(36, 36, 50), font="BIZ UDGothic", pad_left=4),
 }
+LED_THEME = dict(face=(226, 228, 236), out=(36, 36, 50), light=(255, 255, 255),
+                 title=(44, 48, 72), title2=(104, 112, 150), title_text=(255, 255, 255),
+                 accent=(240, 130, 30), sub=(120, 122, 140), text=(36, 36, 50),
+                 field=(255, 255, 255), select=(240, 130, 30), select_text=(255, 255, 255))
+
+# 見た目ごとの、ウィンドウの高さと文章を出す場所
+GEOM = {"notepad": dict(win_h=148, text=(3, 22, 160, 100), status_y=124, btn_y=135),
+        "led": dict(win_h=80, text=(5, 18, 156, 32), status_y=57, btn_y=67)}
+
+
+def geom(skin):
+    return GEOM.get(skin, GEOM["notepad"])
+
+
+# ---------- 電光掲示板 ----------
+LED_COLS, LED_ROWS, LED_CELL = 78, 16, 2      # 横 78 × 縦 16 個の LED。1個 = 2ドット
+LED_TICK = 25
+LED_CPS = [16, 22, 28, 36, 44, 54, 66, 80, 96, 116, 140]   # つまみの段階ごとの、1秒に流れる LED の列の数
+LED_OFF, LED_BODY, LED_META = (52, 22, 18), (255, 170, 50), (120, 255, 110)
+LED_FONT_FILES = [os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "Windows", "Fonts", "DotGothic16-Regular.ttf"),
+                  r"C:\Windows\Fonts\DotGothic16-Regular.ttf", r"C:\Windows\Fonts\msgothic.ttc",
+                  r"C:\Windows\Fonts\BIZ-UDGothicR.ttc", r"C:\Windows\Fonts\meiryo.ttc"]
+_led_font = []
+
+
+def led_font():
+    """LED に出す文字のフォント（DotGothic16 があれば、16個の LED にぴったり）。"""
+    if not _led_font:
+        font = None
+        for fp in LED_FONT_FILES:
+            try:
+                font = ImageFont.truetype(fp, LED_ROWS)
+                break
+            except OSError:
+                continue
+        _led_font.append(font or ImageFont.load_default())
+    return _led_font[0]
+
+
+def one_line(text):
+    """改行をつめて1行にする（電光掲示板用）。"""
+    return re.sub(r"[ \t]{2,}", " ", re.sub(r"\s*\n\s*", "　", text)).strip()
+
+
+def led_strip(segments):
+    """[(文字, 色), ...] を、高さ 16 の横長の絵にする。前後に1画面ぶんの空白をつけて、右から入って左へ抜ける。"""
+    font = led_font()
+    x0, y0, x1, y1 = font.getbbox("あ漢字gjyÅ|")
+    oy = -y0 + max(0, (LED_ROWS - (y1 - y0)) // 2)
+    widths = [max(1, int(round(font.getlength(t)))) for t, _ in segments]
+    im = Image.new("RGB", (LED_COLS * 2 + sum(widths), LED_ROWS), (0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.fontmode = "1"   # にじませない（1個の LED は、つくか消えるか）
+    x = LED_COLS
+    for (t, col), w in zip(segments, widths):
+        d.text((x, oy), t, font=font, fill=col)
+        x += w
+    return im
 
 TEXT_X, TEXT_Y, TEXT_W, TEXT_H = 3, 22, 160, 100
 WIN_W, WIN_H = 166, 148
@@ -161,11 +229,41 @@ def render_window(p, key, info, cmap=None):
 
 def _render_window(p, key, info):
     k = SKINS[key]
-    W, H = WIN_W, WIN_H
+    W, H = WIN_W, geom(key)["win_h"]
     im = Image.new("RGB", (W, H), k["face"])
     d = ImageDraw.Draw(im)
     out = k["out"]
-    if key == "notepad":
+    if key == "led":
+        g = geom(key)
+        tx, ty, tw, th = g["text"]
+        d.rectangle([0, 0, W - 1, H - 1], outline=out)
+        d.line([(1, 1), (W - 2, 1)], fill=k["light"])
+        d.line([(1, 1), (1, H - 2)], fill=k["light"])
+        dither_bar(d, 2, 2, W - 3, 11, k["title"], k["title2"])
+        px_pattern(d, 4, 4, "#.#.#|.....|#.#.#|.....|#.#.#", LED_BODY)   # 小さな LED のアイコン
+        px_pattern(d, 5, 5, "#.#|...|#.#", LED_META)
+        px_text(d, 13, 5, "LEDBOARD.EXE", k["light"])
+        bx0 = W - 3 - 3 * 9
+        for i, icon in enumerate(("min", "max", "close")):
+            x0 = bx0 + i * 9
+            d.rectangle([x0, 3, x0 + 7, 10], fill=k["hover"] if icon == "close" else k["face"], outline=out)
+            px_pattern(d, x0 + 1, 4, _ICONS[icon], out)
+        d.line([(1, 12), (W - 2, 12)], fill=out)
+        # 掲示板のケース（金属っぽい枠と、すみのネジ）
+        cx0, cy0, cx1, cy1 = 2, 14, W - 3, ty + th + 3
+        d.rectangle([cx0, cy0, cx1, cy1], fill=(70, 72, 88), outline=out)
+        d.line([(cx0 + 1, cy0 + 1), (cx1 - 1, cy0 + 1)], fill=(120, 122, 140))
+        d.line([(cx0 + 1, cy1 - 1), (cx1 - 1, cy1 - 1)], fill=(46, 46, 60))
+        for sx, sy in ((cx0 + 2, cy0 + 2), (cx1 - 2, cy0 + 2), (cx0 + 2, cy1 - 2), (cx1 - 2, cy1 - 2)):
+            d.point((sx, sy), fill=(170, 172, 186))
+        d.rectangle([tx - 1, ty - 1, tx + tw, ty + th], fill=k["paper"], outline=(20, 18, 24))
+        # ステータスバー
+        sy = g["status_y"]
+        d.rectangle([3, sy - 1, W - 4, sy + 7], fill=k["face"], outline=k["shade"])
+        px_text(d, 6, sy + 1, f"NOTES {info.get('count', 0):,}", out)
+        right = "PAUSED" if info.get("paused") else "ON AIR" if info.get("radio") else "SCROLL"
+        px_text(d, W - 7 - px_text_w(right), sy + 1, right, out)
+    elif key == "notepad":
         d.rectangle([0, 0, W - 1, H - 1], outline=out)
         d.line([(1, 1), (W - 2, 1)], fill=k["light"])
         d.line([(1, 1), (1, H - 2)], fill=k["light"])
@@ -671,6 +769,13 @@ class Kotonoha:
         self.blink_job = None
         self.body_item = None
         self.body_full = ""
+        # 電光掲示板の状態
+        self.led_key = None
+        self.led_img = None
+        self.led_off = 0.0
+        self.led_done = False
+        self.led_job = None
+        self.led_last = 0.0
         for w in (self.root, self.frame_label, self.cv):
             self.bind_events(w)
         self.frame_label.bind("<Motion>", self.frame_hover, add="+")
@@ -706,7 +811,7 @@ class Kotonoha:
     def menu_theme(self):
         if (self.colorway != "original" or is_night_time()) and self.cfg["skin"] in COLOR_BASE:
             return colorway_theme(self.colorway, COLOR_BASE[self.cfg["skin"]])
-        return THEMES[self.cfg["skin"]]
+        return THEMES.get(self.cfg["skin"], LED_THEME)
 
     def set_colorway(self, name):
         save_colorway(name)
@@ -723,16 +828,21 @@ class Kotonoha:
             self.apply_colorway(look[0])
         self.root.after(2000, self.watch_colorway)
 
+    @property
+    def g(self):
+        return geom(self.cfg["skin"])
+
     def layout(self):
-        p = self.p
-        self.root.geometry(f"{WIN_W * p}x{WIN_H * p}+{self.cfg['x']}+{self.cfg['y']}")
-        self.frame_label.place(x=0, y=0, width=WIN_W * p, height=WIN_H * p)
-        self.cv.place(x=TEXT_X * p, y=TEXT_Y * p, width=TEXT_W * p, height=TEXT_H * p)
+        p, g = self.p, self.g
+        tx, ty, tw, th = g["text"]
+        self.root.geometry(f"{WIN_W * p}x{g['win_h'] * p}+{self.cfg['x']}+{self.cfg['y']}")
+        self.frame_label.place(x=0, y=0, width=WIN_W * p, height=g["win_h"] * p)
+        self.cv.place(x=tx * p, y=ty * p, width=tw * p, height=th * p)
         for key, (x, w) in BUTTONS.items():
             self.draw_button(key)
-            self.buttons[key].place(x=x * p, y=BTN_Y * p)
+            self.buttons[key].place(x=x * p, y=g["btn_y"] * p)
         self.spd.config(bg=hexc(self.sk["face"]))
-        self.spd.place(x=SPD_X * p, y=BTN_Y * p, width=SPD_W * p, height=11 * p)
+        self.spd.place(x=SPD_X * p, y=g["btn_y"] * p, width=SPD_W * p, height=11 * p)
         self.draw_speed()
         self.redraw()
 
@@ -755,12 +865,17 @@ class Kotonoha:
         self.frame_photo = ImageTk.PhotoImage(img)
         self.frame_label.config(image=self.frame_photo)
         p = self.p
-        crop = img.crop((TEXT_X * p, TEXT_Y * p, (TEXT_X + TEXT_W) * p, (TEXT_Y + TEXT_H) * p))
+        tx, ty, tw, th = self.g["text"]
+        crop = img.crop((tx * p, ty * p, (tx + tw) * p, (ty + th) * p))
         self.bg_photo = ImageTk.PhotoImage(crop)
         self.draw_text()
 
     def draw_text(self, meta=None, body=None):
         cv, p, k = self.cv, self.p, self.sk
+        if self.cfg["skin"] == "led":
+            self.led_show()
+            return
+        self.led_key = None
         cv.delete("all")
         cv.create_image(0, 0, image=self.bg_photo, anchor="nw")
         if body is None:
@@ -777,7 +892,7 @@ class Kotonoha:
                 else:
                     meta = f"{doc[2]}　{doc[3]}"
         left = k["pad_left"] * p
-        width = TEXT_W * p - left - 4 * p
+        width = self.g["text"][2] * p - left - 4 * p
         y = 2 * p
         if meta:
             item = cv.create_text(left, y, anchor="nw", text=meta, fill=hexc(k["meta"]),
@@ -785,7 +900,7 @@ class Kotonoha:
             y = cv.bbox(item)[3] + 2 * p
         if not body:
             return
-        limit = TEXT_H * p - 2 * p
+        limit = self.g["text"][3] * p - 2 * p
         size = 7.0   # 大きいサイズから試して、枠に収まる一番大きいサイズを使う
         while True:
             px = max(10, int(size * p))
@@ -811,6 +926,82 @@ class Kotonoha:
             else:
                 self._start_blink()
         self._show_typed()
+
+    # --- 電光掲示板 ---
+    def led_show(self):
+        """いまの文章を、電光掲示板に流しはじめる（同じ文章なら、流れている途中のまま）。"""
+        self._stop_typing()
+        if not self.current:
+            text = one_line(getattr(self, "msg_text", ""))
+            key, segs = ("msg", text), [(text, LED_BODY)]
+        else:
+            doc = self.docs[self.current[0]]
+            body = doc[5][self.current[1]:self.current[2]]
+            if self.cfg["clean_marks"]:
+                body = clean_for_display(body)
+            who = ("　あなた" if doc[4] == "user" else "　AI") if doc[1] == "chatgpt" else ""
+            meta = f"◆{doc[2]}　{doc[3]}{who}◆　"
+            key, segs = tuple(self.current), [(meta, LED_META), (one_line(body), LED_BODY)]
+        if key != self.led_key or not self.cv.find_withtag("led"):
+            self.led_key = key
+            self.led_img = led_strip(segs)
+            self.led_off = 0.0
+            self.led_done = False
+            self.cv.delete("all")
+            self.cv.create_image(0, 0, anchor="nw", tags="led")
+        self.led_frame()
+        if not self.led_job:
+            self.led_last = time.time()
+            self.led_job = self.root.after(LED_TICK, self.led_step)
+
+    def led_assets(self):
+        s = max(2, round(LED_CELL * self.p))   # 1個の LED の大きさ（画面のピクセル）
+        if getattr(self, "_led_s", None) != s:
+            cell = Image.new("L", (s, s), 0)
+            dc = ImageDraw.Draw(cell)
+            if s <= 3:
+                dc.rectangle([0, 0, s - 2, s - 2], fill=255)
+            else:
+                dc.ellipse([0, 0, s - 2, s - 2], fill=255)
+                dc.point([(s // 2 - 1, s // 2 - 1)], fill=255)
+            mask = Image.new("L", (LED_COLS * s, LED_ROWS * s), 0)
+            for yy in range(LED_ROWS):
+                for xx in range(LED_COLS):
+                    mask.paste(cell, (xx * s, yy * s))
+            self._led_mask = Image.merge("RGB", (mask, mask, mask))
+            self._led_unlit = Image.new("RGB", (LED_COLS, LED_ROWS), LED_OFF)
+            self._led_s = s
+        return s
+
+    def led_frame(self):
+        s = self.led_assets()
+        off = int(self.led_off)
+        cells = self.led_img.crop((off, 0, off + LED_COLS, LED_ROWS))
+        lit = cells.convert("L").point(lambda v: 255 if v else 0)
+        cells = Image.composite(cells, self._led_unlit, lit)
+        big = ImageChops.multiply(cells.resize((LED_COLS * s, LED_ROWS * s), Image.NEAREST), self._led_mask)
+        self.led_photo = ImageTk.PhotoImage(big)
+        self.cv.itemconfig("led", image=self.led_photo)
+
+    def led_step(self):
+        self.led_job = None
+        if self.cfg["skin"] != "led" or self.led_img is None:
+            return
+        now = time.time()
+        dt, self.led_last = min(0.2, now - self.led_last), now
+        if not self.var_paused.get() and not self.led_done:
+            old = int(self.led_off)
+            self.led_off += LED_CPS[max(0, min(10, self.cfg["led_speed"]))] * dt
+            end = self.led_img.width - LED_COLS
+            if self.led_off >= end:
+                if self.current and not self.radio:   # 流れきったら、少し間をおいて次の文章へ
+                    self.led_off, self.led_done = end, True
+                    self.schedule()
+                else:                                 # お知らせやラジオ中は、くり返し流す
+                    self.led_off = 0.0
+            if int(self.led_off) != old:
+                self.led_frame()
+        self.led_job = self.root.after(LED_TICK, self.led_step)
 
     # --- 打ち込み演出 ---
     def _stop_typing(self):
@@ -862,7 +1053,8 @@ class Kotonoha:
         x0, x1 = 13, SPD_W - 1
         cv.create_rectangle(x0 * p, 4 * p, x1 * p, 7 * p, fill=hexc(k["paper"]), outline=hexc(k["out"]),
                             width=max(1, p // 2))
-        lv = round(self.cfg["radio_volume"] / 10) if self.radio else self.cfg["type_speed"]
+        lv = (round(self.cfg["radio_volume"] / 10) if self.radio
+              else self.cfg["led_speed"] if self.cfg["skin"] == "led" else self.cfg["type_speed"])
         fw = int((x1 - x0 - 2) * lv / 10)
         if fw > 0:
             cv.create_rectangle((x0 + 1) * p, 5 * p, (x0 + 1 + fw) * p, 6 * p, fill=hexc(k["accent"]), width=0)
@@ -875,6 +1067,9 @@ class Kotonoha:
         lv = round(min(1, max(0, (e.x / self.p - x0) / (x1 - x0 - 2))) * 10)
         if self.radio:
             self.set_radio_volume(lv * 10)
+            return
+        if self.cfg["skin"] == "led":
+            self.set_led_speed(lv)
             return
         if lv != self.cfg["type_speed"]:
             self.cfg["type_speed"] = lv
@@ -898,7 +1093,7 @@ class Kotonoha:
         tag = "flash"
         self.cv.delete(tag)
         w = px_text_w(text) + 4
-        x0 = TEXT_W - w - 2
+        x0 = self.g["text"][2] - w - 2
         self.cv.create_rectangle(x0 * p, 2 * p, (x0 + w) * p, 9 * p, fill=hexc(k["accent"]), width=0, tags=tag)
         for i, ch in enumerate(text.upper()):
             for ry, row in enumerate(PX_FONT.get(ch, PX_FONT["?"]).split("|")):
@@ -966,6 +1161,10 @@ class Kotonoha:
              "items": [{"type": "radio", "label": n, "checked": c["type_speed"] == v,
                         "cmd": lambda v=v: self.set_type_speed(v)}
                        for n, v in (("なし（一瞬で表示）", 0), ("ゆっくり", 2), ("ふつう", 4), ("はやめ", 7), ("かなりはやめ", 10))]},
+            {"type": "sub", "label": "流れる速さ（電光掲示板）", "right": f"{c['led_speed']}",
+             "items": [{"type": "radio", "label": n, "checked": c["led_speed"] == v,
+                        "cmd": lambda v=v: self.set_led_speed(v)}
+                       for n, v in (("ゆっくり", 1), ("ふつう", 4), ("はやめ", 7), ("かなりはやめ", 10))]},
             {"type": "sub", "label": "読み上げの速さ", "items": rate_items,
              "right": next((n for n, v in RADIO_RATES if v == c["radio_rate"]), "")},
             {"type": "sub", "label": "読み上げの音量", "right": f"{c['radio_volume']}%",
@@ -1005,12 +1204,12 @@ class Kotonoha:
         ]
 
     def popup_menu(self, e):
-        self.pmenu.title = "NOTEPIX - MENU" if self.cfg["skin"] == "notepad" else "MY NOTES - MENU"
+        self.pmenu.title = {"notepad": "NOTEPIX - MENU", "led": "LEDBOARD - MENU"}.get(self.cfg["skin"], "MY NOTES - MENU")
         self.pmenu.popup(self.menu_items, e.x_root, e.y_root)
 
     # フチに描いてあるボタン
     def frame_hotspots(self):
-        if self.cfg["skin"] == "notepad":
+        if self.cfg["skin"] in ("notepad", "led"):
             bx0 = WIN_W - 3 - 3 * 9
             return {"min": (bx0, 3, bx0 + 7, 10), "close": (bx0 + 18, 3, bx0 + 25, 10)}
         return {"menu": (WIN_W - 13, 3, WIN_W - 3, 13)}
@@ -1228,6 +1427,10 @@ class Kotonoha:
         self.cancel_timer()
         if self.var_paused.get() or not self.pool or self.radio:
             return
+        if self.cfg["skin"] == "led":   # 電光掲示板は、流れきってから次へ
+            if self.led_done:
+                self.timer = self.root.after(1500, self.show_next)
+            return
         sec = self.cfg["interval_sec"]
         if self.cfg["slow_long"] and self.current:
             sec = max(sec, 3 + (self.current[2] - self.current[1]) / 8)   # 1秒に8文字くらい
@@ -1321,6 +1524,12 @@ class Kotonoha:
         save_config(self.cfg)
         self.draw_speed()
 
+    def set_led_speed(self, v):
+        if v != self.cfg["led_speed"]:
+            self.cfg["led_speed"] = v
+            save_config(self.cfg)
+            self.draw_speed()
+
     def set_rate(self):
         self.cfg["radio_rate"] = self.var_rate.get()
         save_config(self.cfg)
@@ -1389,6 +1598,8 @@ class Kotonoha:
         self.cfg["skin"] = self.var_skin.get()
         save_config(self.cfg)
         self.layout()
+        self.draw_speed()
+        self.schedule()
 
     def set_width(self):
         self.cfg["width"] = self.var_width.get()

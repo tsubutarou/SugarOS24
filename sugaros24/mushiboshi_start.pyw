@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-SugarOS 24 ランチャー ver.1.12
+SugarOS 24 ランチャー ver.1.13
 SugarOS 24 のツールを起動する、タスクバー風のランチャー。
 バーは START・MENU・時計だけのすっきりした形（ツールは MENU のメニュー画面から起動する）。
 設定で「バーにツールのボタンを出す」をオンにすると、前のように「ピン留め」と「起動中」のツールも並ぶ。
@@ -32,7 +32,7 @@ from mushiboshi_ui import (COLORWAY_NAMES, BAYER4, load_weather, load_now_playin
                            load_colorway, load_time_settings, recolor, save_colorway, save_time_settings, mix,
                            px_text, px_text_w, load_json, save_json, hexc, ui_font, dither_bar)
 
-APP_VERSION = "1.12"
+APP_VERSION = "1.13"
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(APP_DIR, "launcher_config.json")
 DOCK_PATH = os.path.join(APP_DIR, "mushiboshi_dock.json")
@@ -47,6 +47,7 @@ TOOLS = [  # (key, メニューでの名前, バーでの名前, スクリプト
     ("green", "ドット温室", "GREENHOUSE", "greenhouse.pyw", "greenhouse.ico"),
     ("meanwhile", "一方その頃", "MEANWHILE", "meanwhile.pyw", "meanwhile.ico"),
     ("nozoki", "のぞき窓", "NOZOKI", "nozokimado.pyw", "nozokimado.ico"),
+    ("neon", "ドットネオン街", "NEON", "neon_sign.pyw", "neon_sign.ico"),
     ("girl", "エレクトロガール", "ELECTRO GIRL", "electro_girl.pyw", "electro_girl.ico"),
     ("mines", "ドットマインスイーパ", "MINES", "minesweeper.pyw", "minesweeper.ico"),
     ("cards", "ドットソリティア", "CARDS", "solitaire.pyw", "solitaire.ico"),
@@ -56,7 +57,7 @@ TOOLS = [  # (key, メニューでの名前, バーでの名前, スクリプト
 ]
 
 # START メニューでの系統（アイデア帳の分け方）
-GROUPS = [("資料を流す", ["photo", "theater", "kotonoha", "record"]), ("眺める", ["aqua", "green", "meanwhile", "nozoki"]),
+GROUPS = [("資料を流す", ["photo", "theater", "kotonoha", "record"]), ("眺める", ["aqua", "green", "meanwhile", "nozoki", "neon"]),
           ("住人", ["girl"]), ("遊ぶ", ["mines", "cards", "sugar"]), ("道具", ["weather", "calendar"])]
 
 DEFAULT_CONFIG = {"dock": "float", "topmost": True, "x": 40, "y": 600, "show_clock_seconds": False, "show_tools": False, "show_splash": True,
@@ -85,7 +86,7 @@ MENU_BASE = {MENU_THEME["face"]: "face", DARK: "out", MENU_THEME["title"]: "titl
 
 # --- メニュー画面（START で開く、大きなアイコンの画面） ---
 HOME_NAMES = {"photo": "フォトフレーム", "theater": "シアター", "kotonoha": "ことのは", "record": "レコード",
-              "aqua": "水槽", "green": "温室", "meanwhile": "一方その頃", "nozoki": "のぞき窓",
+              "aqua": "水槽", "green": "温室", "meanwhile": "一方その頃", "nozoki": "のぞき窓", "neon": "ネオン街",
               "girl": "エレクトロガール", "mines": "マインスイーパ", "cards": "ソリティア",
               "sugar": "シュガーフォール", "weather": "お天気", "calendar": "カレンダー"}
 GROUP_COLORS = {"資料を流す": (255, 200, 218), "眺める": (190, 234, 214), "住人": (255, 216, 176),

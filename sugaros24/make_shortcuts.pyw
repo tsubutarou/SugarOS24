@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-SugarOS 24（フォトフレーム・シアター・ことのは・レコード・水槽・温室・一方その頃・のぞき窓・エレクトロガール・マインスイーパ・ソリティア・シュガーフォール・お天気・カレンダー・ランチャー・メニュー）の、かわいいアイコン付きショートカットをデスクトップに作る。
+SugarOS 24（フォトフレーム・シアター・ことのは・レコード・水槽・温室・一方その頃・のぞき窓・ドットネオン街・エレクトロガール・マインスイーパ・ソリティア・シュガーフォール・お天気・カレンダー・ランチャー・メニュー）の、かわいいアイコン付きショートカットをデスクトップに作る。
 このファイルを、ツールとアイコン（.ico）と同じフォルダに置いてダブルクリックしてね。
 """
 import base64
@@ -19,6 +19,7 @@ TOOLS = [
     ("ドット温室", "greenhouse.pyw", "greenhouse.ico"),
     ("一方その頃", "meanwhile.pyw", "meanwhile.ico"),
     ("のぞき窓", "nozokimado.pyw", "nozokimado.ico"),
+    ("ドットネオン街", "neon_sign.pyw", "neon_sign.ico"),
     ("エレクトロガール", "electro_girl.pyw", "electro_girl.ico"),
     ("ドットマインスイーパ", "minesweeper.pyw", "minesweeper.ico"),
     ("ドットソリティア", "solitaire.pyw", "solitaire.ico"),
