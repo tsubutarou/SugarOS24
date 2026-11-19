@@ -13,9 +13,7 @@
 > Windows 10 / 11 でしか動かしていません。
 > コードの大部分は、AI（Claude）に書いてもらいました。
 
-<!-- スクリーンショット：screenshots フォルダに desk.png を置いたら、下の行のコメントを外す
 ![デスクトップ](screenshots/desk.png)
--->
 
 ---
 

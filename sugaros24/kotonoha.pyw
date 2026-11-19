@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-資料ことのは ver.1.7
+資料ことのは ver.1.8
 ChatGPT のエクスポートや、Simplenote・ストーリープロッターなどの txt を読み込んで、
 文章をランダムに流す常駐ウィンドウ。SugarOS 24 のテキスト担当。
 
@@ -36,7 +36,7 @@ from mushiboshi_ui import (COLORWAY_NAMES, dither_bar, log_errors, is_night_time
 
 from PIL import Image, ImageDraw, ImageTk
 
-APP_VERSION = "1.7"
+APP_VERSION = "1.8"
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(APP_DIR, "kotonoha_config.json")
 INDEX_PATH = os.path.join(APP_DIR, "kotonoha_index.json")
@@ -360,6 +360,8 @@ def load_source(source):
     """1つのソースから docs を作る。"""
     path, typ = source["path"], source["type"]
     docs = []
+    if typ == "folder" and not os.path.isdir(path):   # 見つからないときは、だまらずに知らせる
+        raise FileNotFoundError("フォルダが見つかりません")
     if typ == "chatgpt":
         if path.lower().endswith(".zip"):
             with zipfile.ZipFile(path) as z:
@@ -550,11 +552,37 @@ class Speaker:
 
 # ---------- 設定 ----------
 
+def relocate(path):
+    """ツールのフォルダごと別の場所へ移したとき、中のファイルの場所を新しい場所に読みかえる。
+    例：Desktop\\資料ツール\\input\\a.json が無ければ、いまの 資料ツール\\input\\a.json を探す。"""
+    if not path or os.path.exists(path):
+        return path
+    parts = os.path.normpath(path).split(os.sep)
+    name = os.path.basename(APP_DIR)
+    for i in range(len(parts) - 1, -1, -1):
+        if parts[i] == name:
+            cand = os.path.join(APP_DIR, *parts[i + 1:])
+            if os.path.exists(cand):
+                return cand
+    return path
+
+
 def load_config():
     cfg = dict(DEFAULT_CONFIG)
     cfg.update(load_json(CONFIG_PATH, {}))
     if cfg["skin"] not in SKINS:
         cfg["skin"] = "notepad"
+    moved = False
+    for src in cfg["sources"]:
+        new = relocate(src.get("path"))
+        if new != src.get("path"):
+            src["path"], moved = new, True
+        if src.get("paths"):
+            news = [relocate(p) for p in src["paths"]]
+            if news != src["paths"]:
+                src["paths"], moved = news, True
+    if moved:   # 読みかえた場所を覚えておく
+        save_config(cfg)
     return cfg
 
 
